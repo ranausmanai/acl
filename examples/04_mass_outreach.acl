@@ -1,0 +1,44 @@
+INTENT "Run parallel competitive analysis across multiple competitor URLs"
+
+ALLOW http.get, extract.table, llm.generate
+LIMIT time=300s calls=500 retries=2
+
+# ── Template: analyse one competitor's pricing page ───────────────────────────
+
+TEMPLATE CompetitorAgent(comp_name, comp_url)
+  IN  comp_name, comp_url
+  OUT analysis
+  TOOLS http.get, extract.table, llm.generate
+
+  STEP page = TOOL http.get(url=comp_url)
+    CHECK page.status == 200
+    ONFAIL retry
+
+  STEP rows = TOOL extract.table(text=page.text, columns=["plan","price","features"])
+
+  STEP analysis = TOOL llm.generate(prompt="Analyse competitor pricing page and extract key insights", data=rows, format="json")
+    CHECK len(analysis.text) > 10
+
+  RESULT analysis
+
+# ── Generate one agent per competitor from the --vars list ────────────────────
+
+GROUP competitive = FOR comp IN competitors : MAKE CompetitorAgent(comp_name=comp.name, comp_url=comp.url)
+
+# ── Orchestrator: run first 3 competitor agents and synthesise ────────────────
+
+AGENT CompetitiveAnalysisOrchestrator
+  IN  competitors
+  OUT summary
+  TOOLS llm.generate
+
+  STEP a0 = AGENT competitive_0()
+  STEP a1 = AGENT competitive_1()
+  STEP a2 = AGENT competitive_2()
+
+  STEP summary = TOOL llm.generate(prompt="Synthesise competitive analysis into a positioning brief", data=a0, format="markdown")
+    CHECK len(summary.text) > 50
+
+  MUST len(summary.text) > 50
+
+  RESULT summary

@@ -1,0 +1,43 @@
+INTENT "Generate and send the monthly sales report"
+
+ALLOW sql.query, llm.generate, pdf.render, email.draft
+LIMIT time=120s calls=30 retries=2
+
+AGENT MonthlyReportAgent
+  IN  recipient_email, report_month
+  OUT message_id
+  TOOLS sql.query, llm.generate, pdf.render, email.draft
+
+  # Pull raw sales data
+  STEP sales = TOOL sql.query(query="SELECT product, region, amount, quarter FROM sales")
+    CHECK count(sales.rows) >= 1
+    ONFAIL stop
+
+  # Get open incidents for context
+  STEP incidents = TOOL sql.query(
+    query="SELECT id, severity, status, description FROM incidents WHERE status = 'open'")
+
+  # LLM writes the executive summary
+  STEP summary = TOOL llm.generate(
+    prompt="Write an executive summary for the monthly sales report",
+    data=sales,
+    format="markdown")
+    CHECK len(summary.text) > 100
+
+  # Render PDF
+  STEP pdf = TOOL pdf.render(
+    template="monthly_sales_report",
+    data=sales)
+    CHECK pdf.page_count >= 1
+
+  # Draft the email
+  STEP draft = TOOL email.draft(
+    to=recipient_email,
+    subject="Monthly Sales Report",
+    body=summary.text,
+    attachments=[pdf.file_id])
+    CHECK len(draft.message_id) > 0
+
+  MUST has(draft, "message_id")
+
+  RESULT draft

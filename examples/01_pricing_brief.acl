@@ -1,0 +1,47 @@
+INTENT "Generate a competitor pricing brief for a given product tier"
+
+ALLOW http.get, extract.table, llm.generate
+LIMIT time=60s calls=20 retries=2
+
+# ── Template: scrape + extract pricing from one URL ───────────────────────────
+
+TEMPLATE PricingAgent(ticker, base_url)
+  IN  ticker, base_url
+  OUT rows
+  TOOLS http.get, extract.table
+
+  STEP page = TOOL http.get(url=base_url)
+    CHECK page.status == 200
+    ONFAIL retry
+
+  STEP rows = TOOL extract.table(text=page.text, columns=["plan","price","features"])
+    CHECK count(rows.rows) >= 1
+
+  RESULT rows
+
+# ── Instantiate agents for three competitors ──────────────────────────────────
+
+MAKE PricingAgent(ticker="acme", base_url="https://acme.example.com/pricing") AS AcmeAgent
+MAKE PricingAgent(ticker="zenith", base_url="https://zenith.example.com/pricing") AS ZenithAgent
+MAKE PricingAgent(ticker="nexus", base_url="https://nexus.example.com/pricing") AS NexusAgent
+
+# ── Orchestrator ──────────────────────────────────────────────────────────────
+
+AGENT PricingBriefOrchestrator
+  IN
+  OUT brief
+  TOOLS llm.generate
+
+  STEP acme   = AGENT AcmeAgent()
+  STEP zenith = AGENT ZenithAgent()
+  STEP nexus  = AGENT NexusAgent()
+
+  STEP brief  = TOOL llm.generate(
+    prompt="Summarise competitor pricing and recommend positioning strategy",
+    data=acme,
+    format="markdown")
+    CHECK len(brief.text) > 50
+
+  MUST len(brief.text) > 50
+
+  RESULT brief

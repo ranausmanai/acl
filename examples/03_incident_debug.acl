@@ -1,0 +1,42 @@
+INTENT "Diagnose and triage production incidents with fallback escalation"
+
+ALLOW sql.query, http.get, llm.generate, email.draft
+LIMIT time=90s calls=25 retries=3
+
+AGENT IncidentDebugAgent
+  IN  incident_id
+  OUT triage_report
+  TOOLS sql.query, http.get, llm.generate, email.draft
+
+  # Fetch incident details
+  STEP incident = TOOL sql.query(
+    query="SELECT id, severity, status, description, created_at FROM incidents WHERE id = 1")
+    CHECK count(incident.rows) >= 1
+    ONFAIL stop
+
+  # Check live service health
+  STEP health = TOOL http.get(url="https://status.example.com/health")
+    CHECK health.status == 200
+    ONFAIL fallback cached_health
+
+  # Fallback: use cached health data (only runs if health check fails)
+  STEP cached_health = TOOL sql.query(
+    query="SELECT * FROM incidents WHERE status = 'open'")
+
+  # LLM triage
+  STEP analysis = TOOL llm.generate(
+    prompt="Analyse this incident and recommend immediate remediation steps",
+    data=incident,
+    format="markdown")
+    CHECK len(analysis.text) > 50
+    ONFAIL retry
+
+  # Draft escalation email for critical incidents
+  STEP escalation = TOOL email.draft(
+    to="oncall@example.com",
+    subject="CRITICAL: Incident Triage Report",
+    body=analysis.text)
+
+  MUST has(analysis, "text") and len(analysis.text) > 50
+
+  RESULT analysis

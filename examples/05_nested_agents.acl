@@ -1,0 +1,54 @@
+INTENT "Demonstrate nested agent composition: data → analysis → report"
+
+ALLOW sql.query, llm.generate, pdf.render, email.draft
+LIMIT time=120s calls=40 retries=2
+
+# ── Sub-agent: fetch and summarise sales data ─────────────────────────────────
+
+AGENT DataFetchAgent
+  IN
+  OUT summary
+  TOOLS sql.query, llm.generate
+
+  STEP sales = TOOL sql.query(query="SELECT product, region, amount, quarter FROM sales")
+    CHECK count(sales.rows) >= 1
+    ONFAIL stop
+
+  STEP pricing = TOOL sql.query(query="SELECT plan, price_usd, features FROM pricing")
+
+  STEP summary = TOOL llm.generate(prompt="Summarise key metrics from sales and pricing data", data=sales, format="json")
+    CHECK len(summary.text) > 20
+
+  RESULT summary
+
+# ── Sub-agent: render and deliver the report ──────────────────────────────────
+
+AGENT DeliveryAgent
+  IN  summary, recipient
+  OUT delivery
+  TOOLS pdf.render, email.draft
+
+  STEP pdf = TOOL pdf.render(template="executive_report", data=summary)
+    CHECK pdf.page_count >= 1
+
+  STEP delivery = TOOL email.draft(to=recipient, subject="Executive Summary Report", body=summary.text, attachments=[pdf.file_id])
+    CHECK has(delivery, "message_id")
+
+  RESULT delivery
+
+# ── Orchestrator: coordinates both sub-agents ─────────────────────────────────
+
+AGENT ReportOrchestrator
+  IN  recipient
+  OUT final
+  TOOLS llm.generate
+
+  STEP data     = AGENT DataFetchAgent()
+
+  STEP delivery = AGENT DeliveryAgent(summary=data, recipient=recipient)
+
+  STEP final    = TOOL llm.generate(prompt="Confirm successful report delivery and list next actions", data=delivery, format="markdown")
+
+  MUST has(delivery, "message_id")
+
+  RESULT final

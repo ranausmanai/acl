@@ -1,0 +1,39 @@
+# Binaries
+acl
+/dist/
+
+# Cache
+.acl_cache/
+.ecl_cache/
+.pytest_cache/
+
+# History database
+*.db
+*.db-shm
+*.db-wal
+
+# Receipts (generated output)
+receipt.json
+examples/receipt.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Conversation exports
+*.txt
+
+# Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Env
+.env
+*.env.local
+vars.local.json

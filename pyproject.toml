@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecl"
+version = "0.1.0"
+description = "Universal AI Execution Protocol - deterministic multi-agent runtime"
+requires-python = ">=3.11"
+dependencies = ["click>=8.1"]
+
+[project.scripts]
+ecl = "ecl.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ecl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
