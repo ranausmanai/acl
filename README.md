@@ -1,52 +1,104 @@
-# Agent Contract Language (ACL)
+<div align="center">
 
-A minimal, line-based programming language for defining AI agent workflows with **deterministic execution**, **evidence gating**, and **structured receipts**.
+```
+ █████╗  ██████╗██╗
+██╔══██╗██╔════╝██║
+███████║██║     ██║
+██╔══██║██║     ██║
+██║  ██║╚██████╗███████╗
+╚═╝  ╚═╝ ╚═════╝╚══════╝
+```
+
+**Agent Contract Language**
+
+*A minimal programming language for building reliable AI agent workflows*
+
+[![CI](https://github.com/ranausmanai/acl/actions/workflows/ci.yml/badge.svg)](https://github.com/ranausmanai/acl/actions)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ranausmanai/acl)](https://goreportcard.com/report/github.com/ranausmanai/acl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-lightgrey)](https://github.com/ranausmanai/acl)
+
+</div>
+
+---
+
+ACL is a **line-based programming language** that lets you define AI agent pipelines with a single, auditable contract. Every step must prove it worked — no hidden side effects, no silent failures, no hallucinations sneaking through.
 
 ```acl
-INTENT "Extract pricing and send a brief"
+INTENT "Extract pricing and send a brief to the CTO"
 ALLOW  http.get, extract.table, llm.generate, email.draft
 
 AGENT PricingBrief
   TOOLS http.get, extract.table, llm.generate, email.draft
-  STEP  page    = TOOL http.get(url="https://example.com/pricing")
+
+  STEP page    = TOOL http.get(url="https://example.com/pricing")
     CHECK page.status == 200
-  STEP  rows    = TOOL extract.table(text=page.text, columns=["plan","price"])
+
+  STEP rows    = TOOL extract.table(text=page.text, columns=["plan","price"])
     CHECK count(rows.rows) >= 1
-  STEP  brief   = TOOL llm.generate(prompt="Write an executive brief", data=rows, format="text")
-  STEP  draft   = TOOL email.draft(to="cto@co.com", subject="Pricing Brief", body=brief.text)
+    ONFAIL stop
+
+  STEP brief   = TOOL llm.generate(prompt="Write an executive brief", data=rows, format="text")
+    CHECK len(brief.text) > 50
+
+  STEP draft   = TOOL email.draft(to="cto@co.com", subject="Pricing Brief", body=brief.text)
     CHECK has(draft, "message_id")
+
+  MUST has(draft, "message_id")
   RESULT draft
 ```
 
-Every run emits a **receipt** — a structured JSON trace of what ran, what passed, what failed, and why.
+Every run produces a structured **receipt** — a cryptographically hashed audit log of everything that happened.
 
 ---
 
-## Core principle
+## How it works
 
 ```
-INTENT → STEP → CHECK → RESULT → RECEIPT
+┌─────────────────────────────────────────────────────────┐
+│                                                         │
+│   INTENT ──▶ ALLOW ──▶ AGENT ──┐                       │
+│                                 │                       │
+│              ┌──────────────────▼──────────────────┐   │
+│              │  for each STEP:                      │   │
+│              │                                      │   │
+│              │   resolve args ──▶ check cache       │   │
+│              │         │               │            │   │
+│              │         └───── call tool/agent ────▶ │   │
+│              │                         │            │   │
+│              │              evaluate CHECK expr     │   │
+│              │                         │            │   │
+│              │               pass ─────┴──── fail   │   │
+│              │                │               │     │   │
+│              │             continue       ONFAIL     │   │
+│              │                          retry │      │   │
+│              │                       fallback │      │   │
+│              │                       askhuman │      │   │
+│              │                          stop  │      │   │
+│              └──────────────────────────────────────┘   │
+│                                                         │
+│   evaluate MUST ──▶ evaluate RESULT ──▶ emit RECEIPT   │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
-
-Every step must produce evidence (a `CHECK` expression that passes) before the pipeline advances. No evidence = **fail closed**. No hallucinations, no silent failures.
 
 ---
 
 ## Install
 
-Requires Go 1.22+.
+**Requires Go 1.22+**
 
 ```bash
-git clone https://github.com/ranausmanai/agent-contract-language
-cd agent-contract-language
-go install ./cmd/acl
+go install github.com/ranausmanai/acl/cmd/acl@latest
 ```
 
-Or build directly:
+Or build from source:
 
 ```bash
+git clone https://github.com/ranausmanai/acl
+cd acl
 go build -o acl ./cmd/acl
-./acl --help
 ```
 
 ---
@@ -54,59 +106,65 @@ go build -o acl ./cmd/acl
 ## Quickstart
 
 ```bash
-# Initialise a new project
-acl init my-agents
+# Start a new project
+acl init my-workflow
+cd my-workflow
 
-# Run a program
-acl run examples/01_pricing_brief.acl
+# Edit the generated main.acl, then run it
+acl run main.acl
 
-# Pass input variables
-acl run examples/02_monthly_report.acl --var region=us-west --var quarter=Q1
+# Pass variables inline or from a file
+acl run report.acl --var region=us-west --var quarter=Q1
+acl run report.acl --vars vars.json
 
 # View run history
 acl history list
 acl history show 3
 
-# Serve all agents as an HTTP API
-acl serve examples/01_pricing_brief.acl --port 8080
+# Expose all agents as an HTTP API
+acl serve main.acl --port 8080
 ```
 
 ---
 
 ## Language reference
 
-### Top-level declarations
+### Top-level keywords
 
-| Keyword      | Purpose                                               |
-|--------------|-------------------------------------------------------|
-| `INTENT`     | Human-readable goal statement                         |
-| `ALLOW`      | Tool permission allowlist for the whole program       |
-| `LIMIT`      | Budget constraints: `time=60s calls=100 retries=3`   |
-| `AGENT`      | Define a concrete agent                               |
-| `TEMPLATE`   | Define a parameterised agent blueprint                |
-| `MAKE`       | Instantiate a template into a named agent             |
-| `GROUP`      | Generate many agents from a list via a template       |
-| `REMOTE`     | Declare an agent hosted on another `acl serve` server |
-| `SCHEDULE`   | Cron-trigger an agent in serve mode                   |
+| Keyword    | Purpose                                                        |
+|------------|----------------------------------------------------------------|
+| `INTENT`   | Human-readable goal — goes into every receipt                  |
+| `ALLOW`    | Allowlist of tools the program may call                        |
+| `LIMIT`    | Execution budget: `time=60s calls=100 retries=3`              |
+| `AGENT`    | Define a concrete runnable agent                               |
+| `TEMPLATE` | Define a parameterised agent blueprint                         |
+| `MAKE`     | Instantiate a template into a named agent                      |
+| `GROUP`    | Generate many agents from a list variable                      |
+| `REMOTE`   | Declare an agent served by another `acl serve` process         |
+| `SCHEDULE` | Cron-trigger an agent in serve mode                            |
 
-### Agent body
+### Agent body keywords
 
-| Keyword      | Purpose                                               |
-|--------------|-------------------------------------------------------|
-| `IN`         | Declare input parameters                              |
-| `OUT`        | Declare output parameters                             |
-| `TOOLS`      | Restrict tool access within this agent                |
-| `MUST`       | Agent-level evidence gate (evaluated after all steps) |
-| `STEP`       | Define an execution step (`TOOL` or `AGENT` call)     |
-| `PARALLEL`   | Run the next group of steps concurrently              |
-| `CHECK`      | Step-level evidence expression                        |
-| `ONFAIL`     | Policy when CHECK fails: `retry` `fallback` `stop` `askhuman` |
-| `RESULT`     | Final output expression                               |
+| Keyword    | Purpose                                                        |
+|------------|----------------------------------------------------------------|
+| `IN`       | Declare input parameters                                       |
+| `OUT`      | Declare output parameters                                      |
+| `TOOLS`    | Per-agent tool restriction                                     |
+| `MUST`     | Agent-level evidence gate — evaluated after all steps          |
+| `STEP`     | Execute a tool or call a sub-agent                             |
+| `PARALLEL` | Run the following group of steps concurrently                  |
+| `CHECK`    | Step-level evidence expression — must pass to continue         |
+| `ONFAIL`   | What to do when CHECK fails                                    |
+| `RESULT`   | Output expression — becomes the agent's return value           |
 
-### Full example
+---
+
+## Examples
+
+### Incident report pipeline
 
 ```acl
-INTENT "Weekly incident report"
+INTENT "Weekly incident report for engineering"
 ALLOW  sql.query, llm.generate, pdf.render, email.draft
 LIMIT  time=120s retries=2
 
@@ -121,8 +179,10 @@ AGENT IncidentReport
 
   STEP summary = TOOL llm.generate(
     prompt="Summarise these incidents for the engineering team",
-    data=rows, format="text")
+    data=rows,
+    format="text")
     CHECK len(summary.text) > 50
+    ONFAIL retry
 
   STEP report = TOOL pdf.render(template="incident_report", data=summary.text)
     CHECK has(report, "path")
@@ -132,112 +192,122 @@ AGENT IncidentReport
     subject="Weekly Incident Report",
     body=summary.text)
     CHECK has(draft, "message_id")
+    ONFAIL stop
 
   MUST has(report, "path") and has(draft, "message_id")
   RESULT draft
 ```
 
-### PARALLEL blocks
+### PARALLEL — fetch multiple endpoints at once
 
 ```acl
-PARALLEL
-  STEP a = TOOL http.get(url="https://api-a.example.com/health")
-  STEP b = TOOL http.get(url="https://api-b.example.com/health")
-END
-  CHECK a.status == 200
-  CHECK b.status == 200
+AGENT HealthCheck
+  TOOLS http.get
+
+  PARALLEL
+    STEP api  = TOOL http.get(url="https://api.example.com/health")
+    STEP db   = TOOL http.get(url="https://db.example.com/health")
+    STEP auth = TOOL http.get(url="https://auth.example.com/health")
+  END
+
+  CHECK api.status  == 200
+  CHECK db.status   == 200
+  CHECK auth.status == 200
+
+  RESULT api
 ```
 
-### TEMPLATE, MAKE, GROUP
+### TEMPLATE + GROUP — scale to N agents
 
 ```acl
-TEMPLATE Checker(target_url)
+TEMPLATE SiteChecker(target_url)
   TOOLS http.get
   STEP page = TOOL http.get(url=target_url)
     CHECK page.status == 200
   RESULT page
 
-MAKE Checker(target_url="https://api.example.com") AS APIChecker
+# Instantiate once
+MAKE SiteChecker(target_url="https://api.example.com") AS APICheck
 
-# Generate one agent per item in a list
-GROUP AllCheckers = FOR site IN sites : MAKE Checker(target_url=site.url)
+# Or generate from a list variable (sites = [{url: "..."}, ...])
+GROUP AllChecks = FOR site IN sites : MAKE SiteChecker(target_url=site.url)
+
+AGENT Orchestrator
+  IN  sites
+  TOOLS http.get
+  STEP r0 = AGENT AllChecks_0()
+  STEP r1 = AGENT AllChecks_1()
+  RESULT r0
 ```
 
-### REMOTE and SCHEDULE (serve mode)
+### REMOTE + SCHEDULE — distributed serve mode
 
 ```acl
-# Declare an agent running on another server
-REMOTE AnalysisAgent "http://analytics:8080"
+INTENT "Distributed health monitoring"
+ALLOW  http.get, sql.query
 
-# Cron-trigger an agent when running `acl serve`
-SCHEDULE HealthChecker "*/5 * * * *"
-```
+# Call an agent running on another server
+REMOTE AnalyticsAgent "http://analytics-service:8080"
 
----
+# Fire this agent every 5 minutes when running `acl serve`
+SCHEDULE HealthMonitor "*/5 * * * *"
 
-## Serve mode
+AGENT HealthMonitor
+  TOOLS http.get
+  STEP page = TOOL http.get(url="https://api.example.com/health")
+    CHECK page.status == 200
+  RESULT page
 
-`acl serve` exposes every `AGENT` as an HTTP endpoint:
-
-```bash
-acl serve my_agents.acl --port 8080
-```
-
-| Route               | Auth | Description                       |
-|---------------------|------|-----------------------------------|
-| `GET /health`       | No   | Liveness check + agent list       |
-| `GET /agents`       | Yes  | Agent descriptors (in/out/tools)  |
-| `POST /run/{name}`  | Yes  | Execute agent, returns receipt    |
-
-```bash
-# Run an agent
-curl -X POST http://localhost:8080/run/IncidentReport \
-  -H "Content-Type: application/json" \
-  -d '{"vars": {"week_start": "2025-01-01"}}'
-
-# Secure with an API key
-ACL_SERVE_API_KEY=secret acl serve my_agents.acl
-curl -H "Authorization: Bearer secret" http://localhost:8080/agents
+AGENT Pipeline
+  TOOLS http.get, sql.query
+  STEP health   = AGENT HealthMonitor()
+  STEP analysis = AGENT AnalyticsAgent()   # dispatched over HTTP
+  RESULT analysis
 ```
 
 ---
 
 ## Built-in tools
 
-| Tool             | What it does                                              |
-|------------------|-----------------------------------------------------------|
-| `http.get`       | HTTP GET; returns `{status, text, url}`                   |
-| `extract.table`  | Parse text tables into rows                               |
-| `llm.generate`   | LLM call — Anthropic, OpenAI, Groq, Mistral, or Ollama    |
-| `sql.query`      | SQL via SQLite or PostgreSQL; returns `{rows, count}`     |
-| `pdf.render`     | Generate a PDF file; returns `{path, size_bytes}`         |
-| `email.draft`    | Send email via SMTP; returns `{message_id, sent_at}`      |
+| Tool             | Description                                     | Returns                                  |
+|------------------|-------------------------------------------------|------------------------------------------|
+| `http.get`       | HTTP GET request                                | `{status, text, url}`                    |
+| `extract.table`  | Parse aligned text tables into structured rows  | `{rows: [{col: val}]}`                   |
+| `llm.generate`   | LLM call (multi-provider, see below)            | `{text, model, tokens, provider}`        |
+| `sql.query`      | SQL via SQLite or PostgreSQL                    | `{rows: [{col: val}], count}`            |
+| `pdf.render`     | Generate a PDF file                             | `{path, size_bytes, page_count}`         |
+| `email.draft`    | Send email via SMTP                             | `{message_id, to, subject, sent_at}`     |
 
-### LLM provider configuration
+### LLM providers
 
 `llm.generate` auto-detects the provider from environment variables:
 
-| Env var            | Provider    | Default model                    |
-|--------------------|-------------|----------------------------------|
-| `ANTHROPIC_API_KEY`| anthropic   | `claude-sonnet-4-6`              |
-| `OPENAI_API_KEY`   | openai      | `gpt-4o`                         |
-| `GROQ_API_KEY`     | groq        | `llama-3.3-70b-versatile`        |
-| `MISTRAL_API_KEY`  | mistral     | `mistral-large-latest`           |
-| `OLLAMA_HOST`      | ollama      | `llama3.2`                       |
+| Environment variable | Provider   | Default model                   |
+|----------------------|------------|---------------------------------|
+| `ANTHROPIC_API_KEY`  | anthropic  | `claude-sonnet-4-6`             |
+| `OPENAI_API_KEY`     | openai     | `gpt-4o`                        |
+| `GROQ_API_KEY`       | groq       | `llama-3.3-70b-versatile`       |
+| `MISTRAL_API_KEY`    | mistral    | `mistral-large-latest`          |
+| `OLLAMA_HOST`        | ollama     | `llama3.2`                      |
 
-Override with `ACL_LLM_PROVIDER=groq` or pass `provider=` as a step argument.
+Override per-step: `TOOL llm.generate(prompt="...", provider="groq", model="mixtral-8x7b")`
+Or globally: `ACL_LLM_PROVIDER=openai`
 
-### SQL database configuration
+### Database (sql.query)
 
 ```bash
 # SQLite
-acl run report.acl --var db=sqlite:./data.db
+STEP r = TOOL sql.query(query="SELECT * FROM logs", db="sqlite:./app.db")
+STEP r = TOOL sql.query(query="SELECT * FROM logs", db="sqlite::memory:")
 
 # PostgreSQL
-ACL_DB_URL=postgres://user:pass@localhost/mydb acl run report.acl
+STEP r = TOOL sql.query(query="SELECT * FROM logs", db="postgres://user:pass@host/db")
+
+# Or set globally
+ACL_DB_URL=postgres://user:pass@host/db acl run report.acl
 ```
 
-### Email (SMTP) configuration
+### Email (SMTP)
 
 ```bash
 ACL_SMTP_HOST=smtp.gmail.com
@@ -249,103 +319,171 @@ ACL_SMTP_FROM=you@gmail.com
 
 ---
 
-## Receipt
+## Serve mode
 
-Every `acl run` emits a structured JSON receipt:
-
-```json
-{
-  "acl_version": "0.1.0",
-  "timestamp": "2025-01-15T09:00:00Z",
-  "status": "success",
-  "intent": "Weekly incident report",
-  "policy": {
-    "allow": ["sql.query", "llm.generate", "pdf.render", "email.draft"],
-    "limit": {"time_s": 120, "calls": null, "retries": 2}
-  },
-  "agents": [{
-    "name": "IncidentReport",
-    "status": "success",
-    "must_passed": true,
-    "result": {"message_id": "msg_abc123", "sent_at": "2025-01-15T09:00:01Z"},
-    "steps": [{
-      "name": "rows",
-      "kind": "tool",
-      "target": "sql.query",
-      "check_passed": true,
-      "cache_hit": false,
-      "duration_ms": 42
-    }]
-  }]
-}
-```
-
-Run history is stored locally at `~/.acl/history.db`:
+`acl serve` exposes every `AGENT` as a live HTTP endpoint:
 
 ```bash
-acl history list          # last 20 runs
-acl history show 7        # full receipt for run #7
-acl history purge 30      # delete runs older than 30 days
+acl serve my_agents.acl --port 8080
 ```
+
+| Route               | Auth | Description                             |
+|---------------------|------|-----------------------------------------|
+| `GET  /health`      | No   | Liveness + list of agent names          |
+| `GET  /agents`      | Yes  | Full agent descriptors (in/out/tools)   |
+| `POST /run/{name}`  | Yes  | Execute an agent, returns full receipt  |
+
+```bash
+# Call an agent
+curl -s -X POST http://localhost:8080/run/IncidentReport \
+  -H "Content-Type: application/json" \
+  -d '{"vars": {"week_start": "2025-01-01"}}' | jq .status
+
+# Lock it down with an API key
+ACL_SERVE_API_KEY=mysecret acl serve my_agents.acl
+
+curl -H "Authorization: Bearer mysecret" http://localhost:8080/agents
+```
+
+SCHEDULE-triggered agents run automatically in the background and are saved to history.
 
 ---
 
 ## Evidence language
 
-`CHECK` and `MUST` expressions use a safe evaluator (no `eval`):
+`CHECK` and `MUST` use a **safe expression evaluator** — no `eval()`, no arbitrary code.
 
 ```acl
 CHECK page.status == 200
 CHECK count(rows.rows) >= 3 and has(rows.rows[0], "plan")
 CHECK matches(page.text, "\\d+\\.\\d{2}")
-MUST  all(rows.rows, "price") and len(summary.text) > 100
+MUST  all(rows, "price") and len(summary.text) > 100
 ```
 
-| Function          | Description                               |
-|-------------------|-------------------------------------------|
-| `count(x)`        | Length of list or map                     |
-| `len(x)`          | Length of string or list                  |
-| `has(obj, key)`   | True if object has the given key          |
-| `matches(s, re)`  | True if string matches regex              |
-| `all(list, field)`| True if every item has the field          |
-| `any(list, field)`| True if any item has the field            |
+| Function           | Description                                   |
+|--------------------|-----------------------------------------------|
+| `count(x)`         | Number of items in a list or map              |
+| `len(x)`           | Length of a string or list                    |
+| `has(obj, key)`    | True if the object contains the key           |
+| `matches(s, re)`   | True if string matches the regular expression |
+| `all(list, field)` | True if every item in list has the field      |
+| `any(list, field)` | True if any item in list has the field        |
+
+If a `CHECK` expression raises an error (undefined variable, type mismatch), it **fails closed** — never silently passes.
 
 ---
 
 ## ONFAIL policies
 
-| Policy            | Behaviour                                              |
-|-------------------|--------------------------------------------------------|
-| `retry`           | Re-run the step, up to `LIMIT retries=N`              |
-| `fallback name`   | Jump to a named step in the same agent                 |
-| `askhuman`        | Halt with `status=needs_human`                         |
-| `stop`            | Halt with `status=failed`                              |
+| Policy            | Behaviour                                           |
+|-------------------|-----------------------------------------------------|
+| `retry`           | Re-run the step, up to `LIMIT retries=N`            |
+| `fallback name`   | Jump to a named step in the same agent              |
+| `askhuman`        | Halt with `status=needs_human`                      |
+| `stop`            | Halt with `status=failed`                           |
 
-No `ONFAIL` + failed `CHECK` → **fail closed** (same as `stop`).
+No `ONFAIL` + failed `CHECK` → **fail closed** (equivalent to `stop`).
 
 ---
 
-## Custom tools (Go SDK)
+## Receipt
+
+Every run emits a structured JSON receipt — the authoritative record of what happened:
+
+```json
+{
+  "acl_version": "0.1.0",
+  "timestamp": "2025-06-01T09:00:00Z",
+  "status": "success",
+  "intent": "Extract pricing and send a brief to the CTO",
+  "policy": {
+    "allow": ["http.get", "extract.table", "llm.generate", "email.draft"],
+    "limit": { "time_s": null, "calls": null, "retries": 0 }
+  },
+  "agents": [{
+    "name": "PricingBrief",
+    "status": "success",
+    "must_passed": true,
+    "result": { "message_id": "msg_k3j9x", "sent_at": "2025-06-01T09:00:02Z" },
+    "steps": [
+      {
+        "name": "page",
+        "kind": "tool",
+        "target": "http.get",
+        "output_hash": "a3f1c9d2b7e84011",
+        "check_passed": true,
+        "cache_hit": false,
+        "duration_ms": 312
+      },
+      {
+        "name": "rows",
+        "kind": "tool",
+        "target": "extract.table",
+        "check_passed": true,
+        "cache_hit": true,
+        "duration_ms": 1
+      }
+    ]
+  }]
+}
+```
+
+Run history is persisted locally at `~/.acl/history.db`:
+
+```bash
+acl history list           # last 20 runs
+acl history show 7         # full receipt for run #7
+acl history purge 30       # delete runs older than 30 days
+```
+
+---
+
+## Determinism and caching
+
+Before every tool call, ACL computes:
+
+```
+cache_key = SHA-256(tool_name + normalised_args + tool_version)
+```
+
+Identical inputs always return from cache on subsequent runs. The receipt records `"cache_hit": true` for every cached step. Use `--no-cache` to bypass.
+
+---
+
+## Custom tools (Go)
 
 ```go
 package main
 
 import (
     "context"
-    "acl/internal/protocol"
-    "acl/internal/runtime"
-    "acl/tools/builtin"
+    "github.com/ranausmanai/acl/internal/runtime"
+    "github.com/ranausmanai/acl/tools/builtin"
 )
 
 func main() {
     reg := builtin.NewRegistry()
-    reg.RegisterBuiltin("weather.current", func(ctx context.Context, args map[string]any) (any, error) {
+
+    reg.RegisterBuiltin("weather.now", func(ctx context.Context, args map[string]any) (any, error) {
         city, _ := args["city"].(string)
-        return map[string]any{"temp_c": 22, "city": city}, nil
+        return map[string]any{"city": city, "temp_c": 22, "conditions": "sunny"}, nil
     }, "1")
 
-    r, _ := runtime.RunSource(context.Background(), src, runtime.Config{}, reg)
-    // r is a *receipt.Receipt
+    src := `
+INTENT "Get weather"
+ALLOW  weather.now
+AGENT WeatherAgent
+  IN  city
+  TOOLS weather.now
+  STEP w = TOOL weather.now(city=city)
+    CHECK has(w, "temp_c")
+  RESULT w
+`
+    r, _ := runtime.RunSource(context.Background(), src, runtime.Config{
+        Vars: map[string]any{"city": "London"},
+    }, reg)
+
+    // r.Status == "success", r.Agents[0].Result == {city: London, temp_c: 22, ...}
 }
 ```
 
@@ -354,23 +492,25 @@ func main() {
 ## Project layout
 
 ```
-cmd/acl/           ← CLI entrypoint (acl run, serve, init, history)
-internal/
-  ast/             ← AST node types
-  lexer/           ← tokeniser
-  parser/          ← line-based parser
-  checker/         ← semantic validation
-  runtime/         ← execution engine (steps, PARALLEL, REMOTE)
-  evidence/        ← safe expression evaluator
-  receipt/         ← receipt builder
-  cache/           ← SHA-256 tool output cache
-  server/          ← HTTP server + cron scheduler
-  store/           ← SQLite run history
-tools/
-  builtin/         ← built-in tools (http, sql, llm, pdf, email, extract)
-  sdk/go/          ← Go SDK for custom tools
-  sdk/python/      ← Python SDK for custom tools
-examples/          ← example .acl programs
+acl/
+├── cmd/acl/                  ← CLI: run, serve, init, history
+├── internal/
+│   ├── lexer/                ← tokeniser
+│   ├── parser/               ← line-based parser → AST
+│   ├── ast/                  ← node types (AgentDef, StepDef, ...)
+│   ├── checker/              ← semantic validation
+│   ├── runtime/              ← execution engine (steps, PARALLEL, REMOTE)
+│   ├── evidence/             ← safe expression evaluator
+│   ├── receipt/              ← receipt builder + JSON schema
+│   ├── cache/                ← SHA-256 file cache
+│   ├── server/               ← HTTP server + cron scheduler
+│   └── store/                ← SQLite run history (~/.acl/history.db)
+├── tools/
+│   ├── builtin/              ← http, sql, llm, pdf, email, extract
+│   └── sdk/
+│       ├── go/               ← Go tool SDK
+│       └── python/           ← Python tool SDK
+└── examples/                 ← sample .acl programs
 ```
 
 ---
@@ -383,6 +523,18 @@ go test ./...
 
 ---
 
+## Contributing
+
+Pull requests are welcome. For major changes please open an issue first.
+
+1. Fork the repo
+2. Create a branch: `git checkout -b my-feature`
+3. Make your changes and add tests
+4. Run `go test ./...` — all tests must pass
+5. Open a pull request
+
+---
+
 ## License
 
-MIT
+[MIT](LICENSE)

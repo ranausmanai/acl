@@ -3,7 +3,7 @@ package lexer_test
 import (
 	"testing"
 
-	"acl/internal/lexer"
+	"github.com/ranausmanai/acl/internal/lexer"
 )
 
 func tok(tt lexer.TokenType, lit string) lexer.Token {

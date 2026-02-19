@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"acl/internal/receipt"
+	"github.com/ranausmanai/acl/internal/receipt"
 )
 
 var remoteHTTPClient = &http.Client{Timeout: 5 * time.Minute}

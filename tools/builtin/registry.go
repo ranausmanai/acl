@@ -30,7 +30,7 @@
 //	ACL_PDF_DIR        — directory for generated PDF files (default: OS temp)
 package builtin
 
-import "acl/internal/protocol"
+import "github.com/ranausmanai/acl/internal/protocol"
 
 // Register adds all production built-in tools to reg.
 func Register(reg *protocol.Registry) {

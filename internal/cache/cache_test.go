@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"acl/internal/cache"
+	"github.com/ranausmanai/acl/internal/cache"
 )
 
 func tempCache(t *testing.T) (*cache.Cache, string) {

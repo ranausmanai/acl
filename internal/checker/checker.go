@@ -10,7 +10,7 @@ package checker
 import (
 	"fmt"
 
-	"acl/internal/ast"
+	"github.com/ranausmanai/acl/internal/ast"
 )
 
 // Error is a located semantic error.

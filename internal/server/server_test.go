@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"acl/internal/server"
-	"acl/tools/builtin"
+	"github.com/ranausmanai/acl/internal/server"
+	"github.com/ranausmanai/acl/tools/builtin"
 )
 
 // testACL is a minimal program with two agents that work with the mock registry.

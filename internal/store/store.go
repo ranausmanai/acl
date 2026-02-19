@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"acl/internal/receipt"
+	"github.com/ranausmanai/acl/internal/receipt"
 	_ "modernc.org/sqlite"
 )
 

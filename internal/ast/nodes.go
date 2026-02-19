@@ -5,7 +5,7 @@
 // LimitNode, and AgentDef remain.
 package ast
 
-import "acl/internal/evidence"
+import "github.com/ranausmanai/acl/internal/evidence"
 
 // ── Top-level nodes ──────────────────────────────────────────────────────────
 

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"acl/internal/receipt"
-	"acl/internal/store"
+	"github.com/ranausmanai/acl/internal/receipt"
+	"github.com/ranausmanai/acl/internal/store"
 )
 
 func openTestStore(t *testing.T) *store.Store {

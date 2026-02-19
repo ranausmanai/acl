@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"acl/internal/receipt"
-	"acl/internal/runtime"
-	"acl/tools/builtin"
+	"github.com/ranausmanai/acl/internal/receipt"
+	"github.com/ranausmanai/acl/internal/runtime"
+	"github.com/ranausmanai/acl/tools/builtin"
 )
 
 func run(t *testing.T, src string, vars map[string]any) *receipt.Receipt {

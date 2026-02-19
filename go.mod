@@ -1,4 +1,4 @@
-module acl
+module github.com/ranausmanai/acl
 
 go 1.24.0
 

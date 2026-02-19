@@ -13,14 +13,14 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"acl/internal/ast"
-	"acl/internal/cache"
-	"acl/internal/checker"
-	"acl/internal/evidence"
-	"acl/internal/lexer"
-	"acl/internal/parser"
-	"acl/internal/protocol"
-	"acl/internal/receipt"
+	"github.com/ranausmanai/acl/internal/ast"
+	"github.com/ranausmanai/acl/internal/cache"
+	"github.com/ranausmanai/acl/internal/checker"
+	"github.com/ranausmanai/acl/internal/evidence"
+	"github.com/ranausmanai/acl/internal/lexer"
+	"github.com/ranausmanai/acl/internal/parser"
+	"github.com/ranausmanai/acl/internal/protocol"
+	"github.com/ranausmanai/acl/internal/receipt"
 )
 
 // Config holds execution parameters.

@@ -3,7 +3,7 @@ package evidence_test
 import (
 	"testing"
 
-	"acl/internal/evidence"
+	"github.com/ranausmanai/acl/internal/evidence"
 )
 
 func eval(t *testing.T, expr string, env evidence.Env) any {

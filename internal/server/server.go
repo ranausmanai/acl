@@ -23,13 +23,13 @@ import (
 	"sync"
 	"time"
 
-	"acl/internal/ast"
-	"acl/internal/lexer"
-	"acl/internal/parser"
-	"acl/internal/receipt"
-	"acl/internal/runtime"
-	"acl/internal/store"
-	"acl/internal/protocol"
+	"github.com/ranausmanai/acl/internal/ast"
+	"github.com/ranausmanai/acl/internal/lexer"
+	"github.com/ranausmanai/acl/internal/parser"
+	"github.com/ranausmanai/acl/internal/receipt"
+	"github.com/ranausmanai/acl/internal/runtime"
+	"github.com/ranausmanai/acl/internal/store"
+	"github.com/ranausmanai/acl/internal/protocol"
 )
 
 // Server hosts a parsed ACL program over HTTP.

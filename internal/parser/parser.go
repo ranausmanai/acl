@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"acl/internal/ast"
-	"acl/internal/evidence"
-	"acl/internal/lexer"
+	"github.com/ranausmanai/acl/internal/ast"
+	"github.com/ranausmanai/acl/internal/evidence"
+	"github.com/ranausmanai/acl/internal/lexer"
 )
 
 // ParseError carries a source-location-aware parse failure.
