@@ -1,0 +1,19 @@
+INTENT "Check two APIs and combine their results"
+ALLOW  http.get
+
+# Agent 1: fetches raw JSON from httpbin
+AGENT Fetcher
+  TOOLS http.get
+  STEP resp = TOOL http.get(url="https://httpbin.org/json")
+    CHECK resp.status == 200
+  RESULT resp
+
+# Agent 2: calls Agent 1, then checks a second URL, combines both
+AGENT Pipeline
+  TOOLS http.get
+  STEP data    = AGENT Fetcher()
+    CHECK data.status == 200
+  STEP health  = TOOL http.get(url="https://httpbin.org/get")
+    CHECK health.status == 200
+  MUST data.status == 200 and health.status == 200
+  RESULT health

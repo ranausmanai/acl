@@ -1,0 +1,56 @@
+INTENT "Multi-tool agent: HTTP POST, JSON parse, memory, file I/O, code execution"
+ALLOW  http.request, json.parse, json.stringify, file.write, file.read,
+       memory.set, memory.get, text.chunk, code.run
+
+AGENT StatTracker
+  TOOLS http.request, json.parse, memory.set, file.write
+
+  STEP resp = TOOL http.request(
+    url="https://httpbin.org/post",
+    method="POST",
+    body="{\"agent\": \"StatTracker\", \"version\": \"1.0\"}")
+    CHECK resp.status == 200
+
+  STEP parsed = TOOL json.parse(text=resp.text)
+    CHECK parsed.ok == true
+
+  STEP _ = TOOL memory.set(
+    key="last_run",
+    namespace="demo",
+    value="done",
+    ttl=3600)
+
+  STEP _ = TOOL file.write(
+    path="/tmp/acl_demo_output.json",
+    content=resp.text)
+
+  RESULT parsed
+
+AGENT DataProcessor
+  TOOLS text.chunk, code.run
+
+  STEP chunks = TOOL text.chunk(
+    text="Agent Contract Language is a minimal DSL for AI agent workflows. Every step must produce evidence before the pipeline advances. This prevents hallucinations and silent failures in production AI systems.",
+    size=15,
+    overlap=3)
+    CHECK count(chunks.chunks) >= 1
+
+  STEP calc = TOOL code.run(
+    language="python",
+    code="import json; print(json.dumps({'chunks': 3, 'words_per_chunk': 15, 'status': 'ok'}))")
+    CHECK calc.exit_code == 0
+    CHECK len(calc.stdout) > 5
+
+  RESULT calc
+
+AGENT Orchestrator
+  TOOLS http.request, json.parse, memory.set, file.write, text.chunk, code.run
+
+  STEP stats  = AGENT StatTracker()
+    CHECK stats.ok == true
+
+  STEP report = AGENT DataProcessor()
+    CHECK report.exit_code == 0
+
+  MUST stats.ok == true and report.exit_code == 0
+  RESULT report

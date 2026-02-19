@@ -1,0 +1,44 @@
+INTENT "Fetch HackerNews front page and generate a tech trends brief"
+ALLOW  http.get, llm.generate
+
+# ── Agent 1 ───────────────────────────────────────────────────────────────────
+# Hits the HN Algolia API and returns the top 5 front-page stories as JSON
+AGENT NewsFetcher
+  TOOLS http.get
+  STEP stories = TOOL http.get(url="https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=5")
+    CHECK stories.status == 200
+    CHECK len(stories.text) > 100
+  RESULT stories
+
+# ── Agent 2 ───────────────────────────────────────────────────────────────────
+# Calls NewsFetcher, then asks Groq what tech trends are visible in the titles
+AGENT TrendAnalyst
+  TOOLS http.get, llm.generate
+  STEP raw = AGENT NewsFetcher()
+    CHECK raw.status == 200
+
+  STEP trends = TOOL llm.generate(
+    prompt="You are a sharp tech analyst. Below is a JSON payload of the current HackerNews front page stories. Extract just the story titles and tell me: what 3 tech trends or topics are dominating today? Be specific and direct.",
+    data=raw.text,
+    format="text")
+    CHECK len(trends.text) > 50
+    ONFAIL stop
+
+  RESULT trends
+
+# ── Agent 3 ───────────────────────────────────────────────────────────────────
+# Calls TrendAnalyst, then writes a crisp executive brief
+AGENT BriefWriter
+  TOOLS http.get, llm.generate
+  STEP analysis = AGENT TrendAnalyst()
+    CHECK len(analysis.text) > 20
+
+  STEP brief = TOOL llm.generate(
+    prompt="Turn the following trend analysis into a 3-sentence executive brief that a non-technical CEO could read in 20 seconds. Be punchy.",
+    data=analysis.text,
+    format="text")
+    CHECK len(brief.text) > 30
+    ONFAIL stop
+
+  MUST len(brief.text) > 20
+  RESULT brief
