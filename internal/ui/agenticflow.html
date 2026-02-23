@@ -30,14 +30,15 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .mode-tab { border:1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 7px 12px; font-size:12px; cursor:pointer; transition: all .15s; }
 .mode-tab:hover { border-color:#3f3f46; color: var(--text); }
 .mode-tab.active { background: rgba(34,197,94,0.12); color: #bbf7d0; border-color: rgba(34,197,94,0.35); }
-.mode-actions { display:flex; gap:8px; margin-left: 8px; }
+.mode-actions { display:flex; gap:8px; margin-left: auto; }
 .mode-btn { border:1px solid var(--border); background: #111827; color: #d1d5db; border-radius: 999px; padding: 7px 11px; font-size: 11px; cursor: pointer; }
 .mode-btn:hover { border-color:#3f3f46; color:#fff; }
-.mode-caption { margin-left:auto; color: var(--subtle); font-size:12px; }
+.mode-caption { display:none; }
 .tutorial-drawer-wrap { border-bottom:1px solid var(--border); background: rgba(10,11,15,0.7); flex-shrink: 0; }
 .tutorial-drawer { max-width:980px; margin:0 auto; padding: 10px 16px 12px; max-height: 34dvh; overflow-y: auto; }
 .tutorial-drawer.hidden { display:none; }
 .tutorial-topline { display:flex; align-items:center; justify-content:space-between; gap: 10px; margin-bottom:8px; }
+.tutorial-top-actions { display:flex; gap:8px; align-items:center; }
 .tutorial-progress { color: var(--subtle); font-size: 11px; }
 .tutorial-close { border:1px solid var(--border); background:#0f1117; color:var(--muted); border-radius:999px; padding:5px 9px; font-size:11px; cursor:pointer; }
 .tutorial-close:hover { color:var(--text); border-color:#3f3f46; }
@@ -61,10 +62,9 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .welcome { margin: 0 auto; width: 100%; max-width: 840px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border-radius: 16px; padding: 16px; }
 .welcome h2 { font-size: 20px; margin-bottom: 6px; letter-spacing: -0.02em; }
 .welcome p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 14px; max-width: 700px; }
-.welcome-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+.welcome-grid { display:grid; grid-template-columns: 1fr; gap: 10px; }
 @media (max-width: 760px) {
   .welcome-grid { grid-template-columns: 1fr; }
-  .mode-caption { width:100%; margin-left:0; order: 10; }
   .mode-actions { width:100%; margin-left:0; }
   .tutorial-drawer { max-height: 42dvh; }
   .messages { padding: 10px 12px; }
@@ -73,7 +73,7 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .suggestions { display:flex; flex-wrap: wrap; gap: 8px; }
 .suggestion { border:1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor:pointer; }
 .suggestion:hover { color: var(--text); border-color:#3f3f46; }
-.mode-card { border:1px solid var(--border); background: var(--panel); border-radius: 12px; padding: 12px; }
+.mode-card { display:none; border:1px solid var(--border); background: var(--panel); border-radius: 12px; padding: 12px; }
 .mode-card h3 { font-size: 13px; margin-bottom: 6px; color: #dcfce7; }
 .mode-card p { font-size: 12px; color: var(--muted); line-height: 1.55; }
 .mode-card code { background: #18181b; border:1px solid var(--border); padding: 2px 5px; border-radius: 6px; font-size: 11px; }
@@ -93,6 +93,9 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .tutorial-prompt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #cbd5e1; background: #090b10; border:1px solid var(--border); border-radius: 8px; padding: 8px 9px; margin-bottom: 8px; }
 .tutorial-look { font-size: 11px; color: #a1a1aa; margin-bottom: 8px; line-height: 1.4; }
 .tutorial-actions { display:flex; flex-wrap:wrap; gap: 6px; }
+.tutorial-step:not(.active) p,
+.tutorial-step:not(.active) .tutorial-prompt,
+.tutorial-step:not(.active) .tutorial-look { display:none; }
 .tutorial-btn { border:1px solid var(--border); background: #131722; color: #d4d4d8; border-radius: 999px; padding: 6px 10px; font-size: 11px; cursor: pointer; }
 .tutorial-btn:hover { border-color:#3f3f46; color:#fff; }
 .tutorial-btn.primary { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.35); color: #bfdbfe; }
@@ -154,9 +157,6 @@ textarea::placeholder { color: var(--subtle); }
         <button class="mode-btn" id="tutorial-toggle-btn" type="button" onclick="toggleTutorialDrawer()">
           Tutorial
         </button>
-        <button class="mode-btn" id="tutorial-reset-btn" type="button" onclick="resetTutorialProgress()">
-          Restart Tutorial
-        </button>
       </div>
       <div class="mode-caption" id="mode-caption"></div>
     </div>
@@ -166,12 +166,15 @@ textarea::placeholder { color: var(--subtle); }
       <div class="tutorial-panel" style="margin-top:0">
         <div class="tutorial-topline">
           <div class="tutorial-progress" id="tutorial-progress">Tutorial progress: 0/3 complete</div>
-          <button class="tutorial-close" type="button" onclick="toggleTutorialDrawer(false)">Hide tutorial</button>
+          <div class="tutorial-top-actions">
+            <button class="tutorial-close" type="button" onclick="resetTutorialProgress()">Restart tutorial</button>
+            <button class="tutorial-close" type="button" onclick="toggleTutorialDrawer(false)">Hide tutorial</button>
+          </div>
         </div>
         <div class="tutorial-head">
           <div>
             <h3>Guided Tutorial: Make An App Agent-Ready</h3>
-            <p>This is the tutorial and demo lab. Use the steps below, then inspect the generated ACL, receipt summary, and full receipt JSON.</p>
+            <p>Optional 3-step tour. Run a step, then inspect the generated ACL and receipt.</p>
           </div>
           <div class="tutorial-mini">Reusable panel</div>
         </div>
@@ -343,7 +346,8 @@ function loadTutorialState() {
     const data = JSON.parse(raw);
     if (data && typeof data === 'object') {
       if (typeof data.tutorialStepId === 'string' && TUTORIAL_STEPS.some(s => s.id === data.tutorialStepId)) tutorialStepId = data.tutorialStepId;
-      if (typeof data.tutorialDrawerOpen === 'boolean') tutorialDrawerOpen = data.tutorialDrawerOpen;
+      // Always start collapsed; preserve progress and current step only.
+      tutorialDrawerOpen = false;
       if (data.tutorialCompleted && typeof data.tutorialCompleted === 'object') tutorialCompleted = data.tutorialCompleted;
     }
   } catch (_) {}
@@ -451,7 +455,7 @@ function resetTutorialProgress() {
 
 function renderWelcome() {
   const cfg = MODES[mode];
-  document.getElementById('mode-caption').textContent = cfg.caption;
+  document.getElementById('mode-caption').textContent = '';
   document.getElementById('welcome-title').textContent = cfg.welcomeTitle;
   document.getElementById('welcome-desc').textContent = cfg.welcomeDesc;
   document.getElementById('mode-card-title').textContent = cfg.label + ' demo goal';
