@@ -1,0 +1,21 @@
+INTENT "List Extractly extraction templates"
+ALLOW http.request, llm.generate
+
+AGENT ListExtractlyTemplates
+  IN api_key
+  IN base_url
+  OUT answer
+  TOOLS http.request, llm.generate
+
+  STEP res = TOOL http.request(
+    url="{base_url}/templates",
+    method="GET",
+    bearer=api_key)
+    CHECK res.status == 200
+    ONFAIL stop
+
+  STEP answer = TOOL llm.generate(
+    prompt="Summarize the available Extractly templates in 1-3 sentences from this JSON response: {res.text}")
+  MUST has(answer, "text")
+  RESULT answer
+END

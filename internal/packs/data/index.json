@@ -1,0 +1,22 @@
+{
+  "version": "1",
+  "packs": [
+    {
+      "name": "extractly",
+      "title": "Extractly API Pack",
+      "version": "0.1.0",
+      "description": "Use Extractly's REST API from ACL via http.request (no Go wrapper required).",
+      "docs": "README.md",
+      "tool_manifest": "tool-manifest.json",
+      "env": [
+        {"name": "EXTRACTLY_API_KEY", "required": true, "description": "Bearer API key from Extractly dashboard"}
+      ],
+      "templates": [
+        {"name": "templates_list", "file": "templates/templates_list.acl", "description": "List Extractly templates"},
+        {"name": "map_urls", "file": "templates/map_urls.acl", "description": "Call /api/map with request_json"},
+        {"name": "scrape_site", "file": "templates/scrape_site.acl", "description": "Call /api/scrape with request_json"},
+        {"name": "extract_data", "file": "templates/extract_data.acl", "description": "Call /api/extract with request_json"}
+      ]
+    }
+  ]
+}

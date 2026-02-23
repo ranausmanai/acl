@@ -1,0 +1,23 @@
+INTENT "Map URLs on a website using Extractly /api/map"
+ALLOW http.request, llm.generate
+
+AGENT ExtractlyMapURLs
+  IN api_key
+  IN base_url
+  IN request_json
+  OUT answer
+  TOOLS http.request, llm.generate
+
+  STEP res = TOOL http.request(
+    url="{base_url}/map",
+    method="POST",
+    bearer=api_key,
+    content_type="application/json",
+    body=request_json)
+    CHECK res.status == 200
+
+  STEP answer = TOOL llm.generate(
+    prompt="Summarize the Extractly map result and mention count or top URLs if present. Response JSON: {res.text}")
+  MUST has(answer, "text")
+  RESULT answer
+END

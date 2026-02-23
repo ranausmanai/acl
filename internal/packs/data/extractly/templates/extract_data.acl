@@ -1,0 +1,23 @@
+INTENT "Extract structured data using Extractly /api/extract"
+ALLOW http.request, llm.generate
+
+AGENT ExtractlyExtractData
+  IN api_key
+  IN base_url
+  IN request_json
+  OUT answer
+  TOOLS http.request, llm.generate
+
+  STEP res = TOOL http.request(
+    url="{base_url}/extract",
+    method="POST",
+    bearer=api_key,
+    content_type="application/json",
+    body=request_json)
+    CHECK res.status == 200
+
+  STEP answer = TOOL llm.generate(
+    prompt="Summarize the extracted structured data and mention key fields if present. Response JSON: {res.text}")
+  MUST has(answer, "text")
+  RESULT answer
+END

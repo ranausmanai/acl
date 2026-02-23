@@ -1,0 +1,18 @@
+{
+  "name": "extractly",
+  "title": "Extractly API Pack",
+  "version": "0.1.0",
+  "description": "Extractly integration pack using ACL's built-in http.request tool (no custom Go wrapper required).",
+  "docs": "README.md",
+  "tool_manifest": "tool-manifest.json",
+  "env": [
+    {"name": "EXTRACTLY_API_KEY", "required": true, "description": "Bearer API key"},
+    {"name": "EXTRACTLY_BASE_URL", "required": false, "description": "Defaults to https://extractly.me/api"}
+  ],
+  "templates": [
+    {"name": "templates_list", "file": "templates/templates_list.acl", "description": "GET /api/templates"},
+    {"name": "map_urls", "file": "templates/map_urls.acl", "description": "POST /api/map using request_json payload"},
+    {"name": "scrape_site", "file": "templates/scrape_site.acl", "description": "POST /api/scrape using request_json payload"},
+    {"name": "extract_data", "file": "templates/extract_data.acl", "description": "POST /api/extract using request_json payload"}
+  ]
+}

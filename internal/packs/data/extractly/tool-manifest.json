@@ -1,0 +1,75 @@
+{
+  "version": "1",
+  "provider": "extractly",
+  "base_url": "https://extractly.me/api",
+  "auth": {
+    "type": "bearer",
+    "env": "EXTRACTLY_API_KEY"
+  },
+  "tools": [
+    {
+      "name": "extractly.templates.list",
+      "transport": "http",
+      "method": "GET",
+      "path": "/templates",
+      "side_effect": "read",
+      "approval_required": false,
+      "input": {
+        "type": "object",
+        "properties": {}
+      },
+      "output": {
+        "type": "object",
+        "description": "Extractly template list response"
+      }
+    },
+    {
+      "name": "extractly.map",
+      "transport": "http",
+      "method": "POST",
+      "path": "/map",
+      "side_effect": "read",
+      "approval_required": false,
+      "input": {
+        "type": "object",
+        "description": "Extractly /api/map request payload"
+      },
+      "output": {
+        "type": "object",
+        "description": "Mapped URLs response"
+      }
+    },
+    {
+      "name": "extractly.scrape",
+      "transport": "http",
+      "method": "POST",
+      "path": "/scrape",
+      "side_effect": "read",
+      "approval_required": false,
+      "input": {
+        "type": "object",
+        "description": "Extractly /api/scrape request payload"
+      },
+      "output": {
+        "type": "object",
+        "description": "Scraped content response"
+      }
+    },
+    {
+      "name": "extractly.extract",
+      "transport": "http",
+      "method": "POST",
+      "path": "/extract",
+      "side_effect": "read",
+      "approval_required": false,
+      "input": {
+        "type": "object",
+        "description": "Extractly /api/extract request payload"
+      },
+      "output": {
+        "type": "object",
+        "description": "Structured extraction response"
+      }
+    }
+  ]
+}

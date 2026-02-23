@@ -1,0 +1,23 @@
+INTENT "Scrape a website using Extractly /api/scrape"
+ALLOW http.request, llm.generate
+
+AGENT ExtractlyScrapeSite
+  IN api_key
+  IN base_url
+  IN request_json
+  OUT answer
+  TOOLS http.request, llm.generate
+
+  STEP res = TOOL http.request(
+    url="{base_url}/scrape",
+    method="POST",
+    bearer=api_key,
+    content_type="application/json",
+    body=request_json)
+    CHECK res.status == 200
+
+  STEP answer = TOOL llm.generate(
+    prompt="Summarize the scrape result and pages scraped if present. Response JSON: {res.text}")
+  MUST has(answer, "text")
+  RESULT answer
+END

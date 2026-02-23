@@ -1,0 +1,5 @@
+{
+  "api_key": "REPLACE_WITH_EXTRACTLY_API_KEY",
+  "base_url": "https://extractly.me/api",
+  "request_json": "{\"scrapedData\":{},\"templatePrompt\":\"Extract business name and services.\",\"provider\":\"gemini\"}"
+}
