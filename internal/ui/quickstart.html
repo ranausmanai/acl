@@ -52,16 +52,28 @@ nav a:hover{color:var(--text)}
 .btn.primary{background:#0f2a19;border-color:#1f6f46;color:#d8ffe8}
 .btn.secondary{background:#111827;border-color:#243244;color:#d9e7ff}
 .mini{font-size:12px;color:var(--muted);margin-top:10px}
-.hero pre{
+.diagram-card{
   margin:0;
-  font-size:12px;
-  line-height:1.45;
-  color:#d8e7ff;
   background:#0b1018;
   border:1px solid #1f2a3c;
   border-radius:12px;
-  padding:12px;
-  overflow:auto;
+  padding:10px;
+}
+.diagram-svg{
+  width:100%;
+  height:auto;
+  display:block;
+}
+.diagram-caption{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:8px;
+  font-size:12px;
+  color:var(--muted);
+}
+.diagram-caption strong{
+  color:#dbeafe;
 }
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
 .step h3{margin:0 0 8px;font-size:16px}
@@ -116,13 +128,55 @@ nav a:hover{color:var(--text)}
         <div class="mini">Recommended path: <strong>/agenticflow</strong> to learn the pattern, then <strong>/playground</strong> to prototype your own contracts.</div>
       </div>
       <div class="card">
-<pre>LLM (intent/slots)  ->  ACL contract  ->  Tools/APIs
-         \                 |               /
-          \                |              /
-           +----- receipts / checks / preview-confirm ----+
+        <div class="diagram-card" aria-label="ACL flow diagram">
+          <svg class="diagram-svg" viewBox="0 0 520 240" role="img">
+            <defs>
+              <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#1d4ed8" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#111827" stop-opacity="0.2"/>
+              </linearGradient>
+              <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#22c55e" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#0f172a" stop-opacity="0.15"/>
+              </linearGradient>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/>
+              </marker>
+              <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e"/>
+              </marker>
+            </defs>
 
-APIs give access.
-ACL gives control.</pre>
+            <rect x="0" y="0" width="520" height="240" rx="14" fill="#0b1018"/>
+
+            <rect x="22" y="32" width="136" height="52" rx="12" fill="url(#g1)" stroke="#2a3b59"/>
+            <text x="90" y="55" text-anchor="middle" fill="#dbeafe" font-size="14" font-weight="700">LLM</text>
+            <text x="90" y="72" text-anchor="middle" fill="#93c5fd" font-size="11">intent / slots</text>
+
+            <rect x="192" y="32" width="136" height="52" rx="12" fill="url(#g2)" stroke="#234238"/>
+            <text x="260" y="55" text-anchor="middle" fill="#dcfce7" font-size="14" font-weight="700">ACL Contract</text>
+            <text x="260" y="72" text-anchor="middle" fill="#86efac" font-size="11">rules + checks</text>
+
+            <rect x="362" y="32" width="136" height="52" rx="12" fill="url(#g1)" stroke="#2a3b59"/>
+            <text x="430" y="55" text-anchor="middle" fill="#dbeafe" font-size="14" font-weight="700">Tools / APIs</text>
+            <text x="430" y="72" text-anchor="middle" fill="#93c5fd" font-size="11">apps / Zapier / MCP</text>
+
+            <path d="M 158 58 L 192 58" stroke="#3b82f6" stroke-width="2.2" marker-end="url(#arrow)"/>
+            <path d="M 328 58 L 362 58" stroke="#3b82f6" stroke-width="2.2" marker-end="url(#arrow)"/>
+
+            <rect x="86" y="146" width="348" height="56" rx="14" fill="#0f172a" stroke="#334155"/>
+            <text x="260" y="168" text-anchor="middle" fill="#e5e7eb" font-size="13" font-weight="700">Receipts • Checks • Preview / Confirm</text>
+            <text x="260" y="187" text-anchor="middle" fill="#94a3b8" font-size="11">what ran, what changed, what passed, what failed</text>
+
+            <path d="M 90 84 C 90 118, 145 130, 200 146" fill="none" stroke="#22c55e" stroke-width="2" marker-end="url(#arrowGreen)" opacity="0.9"/>
+            <path d="M 260 84 C 260 116, 260 126, 260 146" fill="none" stroke="#22c55e" stroke-width="2" marker-end="url(#arrowGreen)" opacity="0.9"/>
+            <path d="M 430 84 C 430 118, 375 130, 320 146" fill="none" stroke="#22c55e" stroke-width="2" marker-end="url(#arrowGreen)" opacity="0.9"/>
+          </svg>
+          <div class="diagram-caption">
+            <span><strong>APIs</strong> give access.</span>
+            <span><strong>ACL</strong> gives control.</span>
+          </div>
+        </div>
       </div>
     </div>
 

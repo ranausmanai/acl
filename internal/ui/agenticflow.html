@@ -12,7 +12,7 @@
   --text: #e5e7eb; --muted: #a1a1aa; --subtle: #71717a;
   --accent: #22c55e; --accent2: #16a34a; --blue: #3b82f6;
 }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(circle at 15% -10%, rgba(34,197,94,0.12), transparent 45%), radial-gradient(circle at 100% 0%, rgba(59,130,246,0.10), transparent 35%), var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(circle at 15% -10%, rgba(34,197,94,0.12), transparent 45%), radial-gradient(circle at 100% 0%, rgba(59,130,246,0.10), transparent 35%), var(--bg); color: var(--text); height: 100dvh; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; }
 nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 16px; flex-shrink: 0; }
 .logo { display:flex; align-items:center; gap:8px; font-weight:700; letter-spacing:.04em; }
 .logo-sub { font-size: 12px; color: var(--muted); font-weight: 500; }
@@ -42,7 +42,7 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .tutorial-close { border:1px solid var(--border); background:#0f1117; color:var(--muted); border-radius:999px; padding:5px 9px; font-size:11px; cursor:pointer; }
 .tutorial-close:hover { color:var(--text); border-color:#3f3f46; }
 .chat-shell { flex:1; min-height:0; display:flex; flex-direction:column; max-width: 980px; width:100%; margin:0 auto; }
-.messages { flex:1; min-height:0; overflow-y:auto; padding: 20px 16px; display:flex; flex-direction:column; gap:14px; }
+.messages { flex:1; min-height:0; overflow-y:auto; padding: 20px 16px; display:flex; flex-direction:column; gap:14px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .msg { max-width: 86%; animation: fade .18s ease; }
 @keyframes fade { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none;} }
 .msg-user { align-self:flex-end; }
@@ -58,7 +58,7 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .thinking-dots span:nth-child(3) { animation-delay: .4s; }
 @keyframes bounce { 0%,80%,100% { transform: scale(.8); opacity:.5; } 40% { transform: scale(1.2); opacity:1; } }
 .thinking-text { color: var(--muted); font-size: 12px; }
-.welcome { margin: auto; width: 100%; max-width: 840px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border-radius: 16px; padding: 20px; }
+.welcome { margin: 0 auto; width: 100%; max-width: 840px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border-radius: 16px; padding: 20px; }
 .welcome h2 { font-size: 20px; margin-bottom: 6px; letter-spacing: -0.02em; }
 .welcome p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 14px; max-width: 700px; }
 .welcome-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
@@ -189,12 +189,11 @@ textarea::placeholder { color: var(--subtle); }
         <div class="tutorial-panel" id="tutorial-panel">
           <div class="tutorial-head">
             <div>
-              <h3>Guided Tutorial: Make An App Agent-Ready</h3>
-              <p>Three short flows that show the ACL pattern: natural-language request → controlled action/preview → receipt + full JSON proof. You can reopen this anytime using the Tutorial button above.</p>
+              <h3>Guided Tutorial Is Above</h3>
+              <p>Use the Tutorial panel (above the chat) to run the 3-step guided flow. This welcome card stays compact so the page remains scroll-friendly.</p>
             </div>
-            <div class="tutorial-mini" id="tutorial-mini-progress">Start here</div>
+            <div class="tutorial-mini" id="tutorial-mini-progress">Use Tutorial</div>
           </div>
-          <div class="tutorial-steps" id="tutorial-steps"></div>
         </div>
       </div>
     </div>
