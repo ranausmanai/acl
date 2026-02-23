@@ -16,6 +16,8 @@ nav { background: #020617; padding: 0 20px; height: 48px; display: flex; align-i
 .nav-sep { width: 1px; height: 24px; background: #1e293b; }
 select { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer; }
 select:focus { outline: none; border-color: #3b82f6; }
+.nav-link { color:#94a3b8; text-decoration:none; font-size:12px; }
+.nav-link:hover { color:#e2e8f0; }
 .spacer { flex: 1; }
 .run-btn { background: #22c55e; color: #020617; border: none; border-radius: 6px; padding: 6px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px; }
 .run-btn:hover:not(:disabled) { background: #16a34a; }
@@ -36,6 +38,26 @@ select:focus { outline: none; border-color: #3b82f6; }
 .panel-hdr .badge { background: #1e293b; color: #94a3b8; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; }
 
 /* ── Editor ── */
+.editor-onboard { padding: 10px 12px; border-bottom: 1px solid #1e293b; background: #0b1220; display:grid; gap:8px; }
+.onboard-card { border: 1px solid #1e293b; border-radius: 8px; background: #0f172a; padding: 10px; }
+.onboard-card strong { display:block; font-size:12px; margin-bottom:4px; color:#dbeafe; }
+.onboard-card p { font-size:11px; line-height:1.45; color:#94a3b8; }
+.onboard-card p a { color:#93c5fd; text-decoration:none; }
+.onboard-card p a:hover { color:#bfdbfe; text-decoration:underline; }
+.template-filter { display:flex; flex-wrap:wrap; gap:6px; }
+.filter-chip { border:1px solid #334155; background:#111827; color:#94a3b8; border-radius:999px; padding:5px 9px; font-size:10px; cursor:pointer; }
+.filter-chip.active { background:#1e293b; color:#e2e8f0; border-color:#475569; }
+.template-gallery { max-height: 190px; overflow-y:auto; display:grid; gap:7px; }
+.tpl-card { border:1px solid #1e293b; border-radius:8px; background:#0f172a; padding:9px; }
+.tpl-top { display:flex; align-items:flex-start; gap:8px; }
+.tpl-title { font-size:12px; font-weight:600; color:#e2e8f0; line-height:1.25; }
+.tpl-meta { margin-left:auto; font-size:10px; color:#64748b; white-space:nowrap; }
+.tpl-desc { margin-top:4px; font-size:11px; color:#94a3b8; line-height:1.4; }
+.tpl-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+.tpl-tag { font-size:9px; border:1px solid #243244; color:#93c5fd; border-radius:999px; padding:2px 6px; background:#0b1220; }
+.tpl-actions { margin-top:8px; display:flex; gap:6px; }
+.tpl-btn { border:1px solid #334155; background:#111827; color:#e2e8f0; border-radius:6px; font-size:10px; padding:5px 8px; cursor:pointer; }
+.tpl-btn:hover { border-color:#475569; }
 .editor-wrap { flex: 1; position: relative; overflow: hidden; }
 #editor { width: 100%; height: 100%; background: #0f172a; color: #e2e8f0; border: none; resize: none; font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.65; padding: 12px 16px; tab-size: 2; outline: none; }
 #editor::placeholder { color: #334155; }
@@ -70,6 +92,15 @@ select:focus { outline: none; border-color: #3b82f6; }
 .ev-fail { color: #ef4444; }
 
 .error-banner { background: #450a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; color: #fca5a5; font-size: 13px; white-space: pre-wrap; }
+.approval-helper { margin-bottom: 12px; border:1px solid #1d4ed8; background:#0b1220; border-radius:8px; padding:10px 12px; }
+.approval-helper-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.approval-helper-pill { font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; background:#172554; color:#bfdbfe; border:1px solid #1d4ed8; }
+.approval-helper h4 { font-size:12px; color:#dbeafe; }
+.approval-helper p { font-size:11px; color:#93c5fd; line-height:1.4; margin-bottom:8px; }
+.approval-helper-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.approval-helper button { border:1px solid #334155; background:#111827; color:#e2e8f0; border-radius:6px; padding:6px 9px; font-size:11px; cursor:pointer; }
+.approval-helper button.primary { border-color:#1d4ed8; background:#172554; color:#dbeafe; }
+.approval-helper button:hover { border-color:#475569; }
 
 /* ── View toggle ── */
 .view-toggle { display: flex; gap: 2px; background: #0f172a; border-radius: 6px; padding: 2px; }
@@ -102,6 +133,7 @@ select:focus { outline: none; border-color: #3b82f6; }
   .panels { flex-direction: column; }
   .panel-left { border-right: none; border-bottom: 1px solid #1e293b; flex: none; height: 45vh; }
   .panel-right { flex: 1; }
+  .template-gallery { max-height: 140px; }
 }
 </style>
 </head>
@@ -111,13 +143,10 @@ select:focus { outline: none; border-color: #3b82f6; }
   <span class="logo"><svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" style="vertical-align:middle;margin-right:6px"><rect width="32" height="32" rx="6" fill="#4f46e5"/><rect x="4" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="4" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="4" y="24.5" width="7" height="2.5" rx="1" fill="white"/><rect x="25.5" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="21" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="21" y="24.5" width="7" height="2.5" rx="1" fill="white"/><circle cx="16" cy="16" r="3" fill="white" opacity="0.9"/></svg>ACL <span class="logo-sub">Playground</span></span>
   <span class="nav-sep"></span>
   <select id="examples" onchange="loadExample()">
-    <option value="">Load Example…</option>
-    <option value="hello">Hello World</option>
-    <option value="researcher">Web Researcher</option>
-    <option value="summarizer">Page Summarizer</option>
-    <option value="ifelse">IF/ELSE Demo</option>
-    <option value="foreach">FOREACH Demo</option>
+    <option value="">Load Template…</option>
   </select>
+  <a class="nav-link" href="/quickstart">Quickstart</a>
+  <a class="nav-link" href="/agenticflow">Guided Tutorial</a>
   <span class="spacer"></span>
   <div class="health"><span class="dot" id="h-dot"></span><span id="h-txt">—</span></div>
   <span class="nav-sep"></span>
@@ -133,6 +162,14 @@ select:focus { outline: none; border-color: #3b82f6; }
     <div class="panel-hdr">
       Editor
       <span class="badge" id="line-badge">0 lines</span>
+    </div>
+    <div class="editor-onboard">
+      <div class="onboard-card">
+        <strong>Start here (5 min)</strong>
+        <p>Use <a href="/quickstart" target="_blank">/quickstart</a> for the builder path, or <a href="/agenticflow" target="_blank">/agenticflow</a> for guided demos with receipts. Then load a template below and customize it.</p>
+      </div>
+      <div class="template-filter" id="template-filters"></div>
+      <div class="template-gallery" id="template-gallery"></div>
     </div>
     <div class="editor-wrap">
       <textarea id="editor" spellcheck="false" placeholder="Write your ACL code here…
@@ -169,69 +206,270 @@ END"></textarea>
 <div class="bottom-bar">
   <span>ACL — Agent Contract Language</span>
   <span class="spacer"></span>
+  <a href="/quickstart">Quickstart</a>
+  <a href="/agenticflow">Agentic Flow</a>
   <a href="https://github.com/ranausmanai/acl" target="_blank">GitHub</a>
 </div>
 
 <script>
-// ── Examples ────────────────────────────────────────────────────────────────
+// ── Templates ───────────────────────────────────────────────────────────────
 
-const EXAMPLES = {
-  hello: `AGENT HelloWorld
-  OUT greeting
+const TEMPLATES = [
+  {
+    id: 'calendar_read',
+    title: 'Calendar Read (Query + Receipt)',
+    category: 'Everyday',
+    tags: ['read', 'receipt', 'calendar'],
+    description: 'Simple read flow that still produces a receipt and a clear answer.',
+    code: `AGENT CalendarRead
+  OUT answer
+  TOOLS demo.calendar.find_event, llm.generate
 
-  STEP greet = TOOL llm.generate(prompt="Say hello to the world in a creative, fun way. Keep it to 2 sentences.")
-
-END`,
-
-  researcher: `AGENT WebResearcher
-  OUT summary
-
-  STEP search = TOOL search.web(query="latest AI agent frameworks 2025")
-  STEP summarize = TOOL llm.generate(prompt="Summarize these search results into 3 key bullet points: {search.hits}")
-
-END`,
-
-  summarizer: `AGENT PageSummarizer
-  OUT summary
-
-  STEP fetch = TOOL browser.fetch(url="https://en.wikipedia.org/wiki/Artificial_intelligence")
-  STEP summarize = TOOL llm.generate(prompt="Summarize this article in 5 bullet points: {fetch.text}")
-
-END`,
-
-  ifelse: `AGENT PriceChecker
-  OUT result
-
-  STEP price = TOOL llm.generate(prompt="Return ONLY a number: approximate price of Bitcoin in USD right now. Just the number.")
-
-  IF price.text CONTAINS "100"
-    STEP alert = TOOL llm.generate(prompt="Bitcoin is above 100k! Write a one-line celebration.")
-  ELSE
-    STEP report = TOOL llm.generate(prompt="Bitcoin price: {price.text}. Write a one-line market summary.")
-  END
-
-END`,
-
-  foreach: `AGENT MultiGreeter
-  OUT greetings
-
-  STEP langs = TOOL json.parse(text="[\\"English\\",\\"Spanish\\",\\"Japanese\\"]")
-
-  FOREACH lang IN langs.data
-    STEP greet = TOOL llm.generate(prompt="Say hello world in {lang}. Just the greeting, nothing else.")
-  END
-
+  STEP events = TOOL demo.calendar.find_event(query="meeting")
+  STEP answer = TOOL llm.generate(prompt="Using these events: {events.events}, answer what meetings I have in 1-2 sentences.")
+  MUST has(answer, "text")
+  RESULT answer
 END`
-};
+  },
+  {
+    id: 'calendar_reschedule_preview',
+    title: 'Calendar Reschedule (Preview Pattern)',
+    category: 'Everyday',
+    tags: ['write', 'preview', 'calendar'],
+    description: 'Find an event, preview the move, and ask for confirmation before executing.',
+    code: `AGENT CalendarMovePreview
+  OUT answer
+  TOOLS demo.calendar.find_event, llm.generate
 
-function loadExample() {
+  STEP ev = TOOL demo.calendar.find_event(query="coffee")
+  CHECK ev.count >= 1
+  STEP answer = TOOL llm.generate(prompt="Preview only: tell the user I found {ev.events} and ask for confirmation to move the first event to 2026-02-28 16:00:00.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'split_expense',
+    title: 'Split Expense (Splitwise-style Sandbox)',
+    category: 'Consumer',
+    tags: ['write', 'finance', 'splitwise'],
+    description: 'Creates a sandbox split expense and validates success.',
+    code: `AGENT SplitExpense
+  OUT answer
+  TOOLS demo.splitwise.create_expense, llm.generate
+
+  STEP create = TOOL demo.splitwise.create_expense(description="Dinner", amount_each=20, currency="USD", paid_by="me", person="Sarah")
+  MUST create.status == "ok"
+  STEP answer = TOOL llm.generate(prompt="Summarize this split expense in 1 sentence using {create}.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'budget_transaction_log',
+    title: 'Budget Transaction Log (Sandbox Pattern)',
+    category: 'Consumer',
+    tags: ['write', 'finance', 'pattern'],
+    description: 'A starter pattern for logging an expense and summarizing budget impact.',
+    code: `AGENT LogExpensePattern
+  OUT answer
+  TOOLS llm.generate
+
+  STEP answer = TOOL llm.generate(prompt="Pretend we logged a $46 groceries expense and explain the budget impact in 1-2 sentences. This is a pattern template for real finance tools.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'refund_eligibility_check',
+    title: 'Refund Eligibility Check',
+    category: 'Support/Ops',
+    tags: ['read', 'support', 'ops'],
+    description: 'Read-only support workflow that checks if an order can be refunded.',
+    code: `AGENT RefundEligibility
+  OUT answer
+  TOOLS demo.support.get_order, llm.generate
+
+  STEP order = TOOL demo.support.get_order(order_id="10482")
+  MUST order.found == true
+  STEP answer = TOOL llm.generate(prompt="Tell me if order #10482 is eligible for refund using {order} in 1-2 sentences.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'refund_email_approval',
+    title: 'Refund + Customer Email (Approval Pattern)',
+    category: 'Support/Ops',
+    tags: ['write', 'approval', 'support'],
+    description: 'High-trust support flow with explicit approval in the tool call.',
+    code: `AGENT RefundAndEmail
+  OUT answer
+  TOOLS demo.support.get_order, demo.support.refund_order, demo.support.send_email, llm.generate
+
+  STEP order = TOOL demo.support.get_order(order_id="10482")
+  MUST order.found == true
+  MUST order.refund_eligible == true
+  STEP refund = TOOL demo.support.refund_order(order_id="10482", approved=true, reason="Customer requested refund")
+  MUST refund.status == "refunded"
+  STEP email = TOOL demo.support.send_email(to=order.customer_email, subject="Refund processed", body="Your refund for order #10482 has been processed.")
+  STEP answer = TOOL llm.generate(prompt="Summarize the refund action using {refund} and {email} in 1-2 sentences.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'delayed_orders_monitor',
+    title: 'Delayed Orders Monitor (Scheduled Pattern)',
+    category: 'Ops',
+    tags: ['schedule', 'ops', 'pattern'],
+    description: 'A scheduled monitoring template demonstrating automation beyond chat.',
+    code: `SCHEDULE OrderDelayMonitor CRON "*/5 * * * *"
+
+AGENT OrderDelayMonitor
+  OUT answer
+  TOOLS llm.generate
+
+  STEP answer = TOOL llm.generate(prompt="This is a template for a delayed-order monitor. Summarize what a real workflow would check and alert on in 2 sentences.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'zapier_calendar_preview',
+    title: 'Zapier Calendar Preview',
+    category: 'Integrations',
+    tags: ['zapier', 'preview', 'write'],
+    description: 'Preview-first pattern using the Zapier bridge.',
+    code: `AGENT ZapierCalendarPreview
+  OUT answer
+  TOOLS zapier.invoke, llm.generate
+
+  STEP z = TOOL zapier.invoke(action="calendar.create_event", mode="preview", approved=false, title="Lunch with Ali", starts_at="2026-02-24T13:00:00", location="Home")
+  MUST z.status == "preview"
+  STEP answer = TOOL llm.generate(prompt="Confirm what would be created from this preview and ask for confirmation: {z.preview}")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'zapier_calendar_execute',
+    title: 'Zapier Calendar Execute (Approved)',
+    category: 'Integrations',
+    tags: ['zapier', 'execute', 'approval'],
+    description: 'Execute path for the same Zapier flow with explicit approval flag.',
+    code: `AGENT ZapierCalendarExecute
+  OUT answer
+  TOOLS zapier.invoke, llm.generate
+
+  STEP z = TOOL zapier.invoke(action="calendar.create_event", mode="execute", approved=true, title="Lunch with Ali", starts_at="2026-02-24T13:00:00", location="Home")
+  MUST (z.status == "accepted") or (z.status == "not_configured")
+  STEP answer = TOOL llm.generate(prompt="Summarize the execute result for the user using {z}.")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  },
+  {
+    id: 'api_wrapper_skeleton',
+    title: 'API Wrapper Skeleton (Make Your App Agent-Ready)',
+    category: 'Integrations',
+    tags: ['starter', 'api', 'pattern'],
+    description: 'Copy this to wrap your own app tools with read/write checks and preview/confirm conventions.',
+    code: `AGENT MyAppActionFlow
+  OUT answer
+  TOOLS myapp.lookup_item, myapp.preview_action, myapp.execute_action, llm.generate
+
+  # 1) Read from your app
+  STEP item = TOOL myapp.lookup_item(query="replace-me")
+  CHECK has(item, "id")
+
+  # 2) Preview write action first (recommended)
+  STEP preview = TOOL myapp.preview_action(item_id=item.id)
+  MUST preview.status == "preview"
+
+  # 3) In production UI, ask user to confirm before execute
+  # STEP exec = TOOL myapp.execute_action(item_id=item.id, approved=true)
+  # MUST exec.status == "ok"
+
+  STEP answer = TOOL llm.generate(prompt="Summarize the preview and ask for confirmation. Preview: {preview}")
+  MUST has(answer, "text")
+  RESULT answer
+END`
+  }
+];
+
+let activeTemplateFilter = 'all';
+
+function templateById(id) {
+  return TEMPLATES.find(t => t.id === id);
+}
+
+function loadExample(templateId) {
   const sel = document.getElementById('examples');
-  const code = EXAMPLES[sel.value];
-  if (code) {
-    document.getElementById('editor').value = code;
+  const id = templateId || sel.value;
+  const tpl = templateById(id);
+  if (tpl) {
+    document.getElementById('editor').value = tpl.code;
     updateLineCount();
   }
-  sel.value = '';
+  if (sel) sel.value = '';
+}
+
+function renderTemplateDropdown() {
+  const sel = document.getElementById('examples');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Load Template…</option>';
+  for (const t of TEMPLATES) {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = `${t.title} (${t.category})`;
+    sel.appendChild(opt);
+  }
+}
+
+function templateCategories() {
+  const cats = new Set(['all']);
+  for (const t of TEMPLATES) cats.add(t.category);
+  return Array.from(cats);
+}
+
+function renderTemplateFilters() {
+  const root = document.getElementById('template-filters');
+  if (!root) return;
+  root.innerHTML = '';
+  for (const cat of templateCategories()) {
+    const btn = document.createElement('button');
+    btn.className = 'filter-chip' + (activeTemplateFilter === cat ? ' active' : '');
+    btn.textContent = cat === 'all' ? 'All' : cat;
+    btn.onclick = () => { activeTemplateFilter = cat; renderTemplateFilters(); renderTemplateGallery(); };
+    root.appendChild(btn);
+  }
+}
+
+function renderTemplateGallery() {
+  const root = document.getElementById('template-gallery');
+  if (!root) return;
+  root.innerHTML = '';
+  const list = TEMPLATES.filter(t => activeTemplateFilter === 'all' || t.category === activeTemplateFilter);
+  for (const t of list) {
+    const card = document.createElement('div');
+    card.className = 'tpl-card';
+    card.innerHTML = `
+      <div class="tpl-top">
+        <div class="tpl-title">${esc(t.title)}</div>
+        <div class="tpl-meta">${esc(t.category)}</div>
+      </div>
+      <div class="tpl-desc">${esc(t.description)}</div>
+      <div class="tpl-tags">${(t.tags || []).map(tag => `<span class="tpl-tag">${esc(tag)}</span>`).join('')}</div>
+      <div class="tpl-actions">
+        <button class="tpl-btn" type="button" data-template="${esc(t.id)}">Load</button>
+      </div>
+    `;
+    root.appendChild(card);
+  }
+  root.querySelectorAll('button[data-template]').forEach(btn => {
+    btn.onclick = () => loadExample(btn.getAttribute('data-template'));
+  });
 }
 
 // ── Editor ──────────────────────────────────────────────────────────────────
@@ -371,6 +609,70 @@ function highlightJSON(obj) {
             .replace(/:\s*(true|false|null)/g, ': <span class="jb">$1</span>');
 }
 
+function findZapierPreviewStep(rec) {
+  const agents = rec && rec.agents ? rec.agents : [];
+  const steps = agents.flatMap(a => a.steps || []);
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const st = steps[i];
+    if (st.target !== 'zapier.invoke') continue;
+    const data = st.result && typeof st.result === 'object' ? st.result : null;
+    if (!data) continue;
+    if (String(data.status || '').toLowerCase() === 'preview') return data;
+  }
+  return null;
+}
+
+function copyText(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (_) {}
+  ta.remove();
+}
+
+function buildExecuteVariantFromEditor(code) {
+  let out = code;
+  out = out.replace(/mode="preview"/g, 'mode="execute"');
+  if (/approved=false/.test(out)) {
+    out = out.replace(/approved=false/g, 'approved=true');
+  } else if (/zapier\.invoke\(/.test(out) && !/approved=/.test(out)) {
+    out = out.replace(/zapier\.invoke\(([^)]*)mode="execute"/, 'zapier.invoke($1mode="execute", approved=true');
+  }
+  return out;
+}
+
+function renderApprovalHelper(rec) {
+  const z = findZapierPreviewStep(rec);
+  if (!z) return '';
+  let payload = z.preview || z.payload || {};
+  let payloadJSON = '';
+  try { payloadJSON = JSON.stringify(payload, null, 2); } catch (_) { payloadJSON = String(payload); }
+  return `<div class="approval-helper">
+    <div class="approval-helper-head">
+      <span class="approval-helper-pill">Preview / Confirm</span>
+      <h4>Zapier write action is in preview mode</h4>
+    </div>
+    <p>This run used <code>zapier.invoke(... mode="preview")</code>. Review the payload, then apply the execute variant to demonstrate the confirmation step.</p>
+    <div class="approval-helper-actions">
+      <button class="primary" type="button" onclick="runExecuteVariantFromPlayground()">Run Execute Variant</button>
+      <button type="button" onclick='copyText(${JSON.stringify(payloadJSON)})'>Copy Preview Payload</button>
+    </div>
+  </div>`;
+}
+
+function runExecuteVariantFromPlayground() {
+  const next = buildExecuteVariantFromEditor(editor.value);
+  editor.value = next;
+  updateLineCount();
+  runCode();
+}
+
 function showError(msg, elapsed) {
   lastReceipt = null;
   document.getElementById('view-toggle').style.display = 'none';
@@ -398,6 +700,8 @@ function showReceipt(rec, elapsed) {
   const steps = agents.flatMap(a => a.steps || []);
 
   let html = '<div class="receipt-out">';
+
+  html += renderApprovalHelper(rec);
 
   // Status bar.
   html += `<div class="receipt-status">
@@ -514,6 +818,9 @@ async function checkHealth() {
 
 checkHealth();
 setInterval(checkHealth, 30000);
+renderTemplateDropdown();
+renderTemplateFilters();
+renderTemplateGallery();
 updateLineCount();
 </script>
 </body>

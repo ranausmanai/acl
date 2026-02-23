@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACL Quickstart</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+:root {
+  --bg:#090b10;
+  --panel:#11151d;
+  --panel2:#161c26;
+  --text:#eef2f7;
+  --muted:#a6b0be;
+  --line:#263042;
+  --accent:#4ade80;
+  --accent2:#60a5fa;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(circle at 10% 0%, #142034 0%, var(--bg) 45%), var(--bg);
+  color:var(--text);
+}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 18px 48px}
+nav{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:14px;margin-bottom:20px}
+nav .brand{color:var(--text);font-weight:700;letter-spacing:.06em}
+nav a{text-decoration:none;color:var(--muted)}
+nav a:hover{color:var(--text)}
+.hero{
+  display:grid;
+  grid-template-columns:1.15fr .85fr;
+  gap:18px;
+  align-items:stretch;
+}
+.card{
+  background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:18px;
+}
+.hero h1{margin:0 0 8px;font-size:34px;line-height:1.1}
+.hero p{margin:0;color:var(--muted);line-height:1.55}
+.cta-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 14px;border-radius:10px;border:1px solid var(--line);
+  text-decoration:none;font-weight:600;font-size:14px;background:var(--panel2)
+}
+.btn.primary{background:#0f2a19;border-color:#1f6f46;color:#d8ffe8}
+.btn.secondary{background:#111827;border-color:#243244;color:#d9e7ff}
+.mini{font-size:12px;color:var(--muted);margin-top:10px}
+.hero pre{
+  margin:0;
+  font-size:12px;
+  line-height:1.45;
+  color:#d8e7ff;
+  background:#0b1018;
+  border:1px solid #1f2a3c;
+  border-radius:12px;
+  padding:12px;
+  overflow:auto;
+}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+.step h3{margin:0 0 8px;font-size:16px}
+.step p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.links{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;
+  border:1px solid var(--line);font-size:12px;color:var(--muted);text-decoration:none
+}
+.chip:hover{color:var(--text);border-color:#3b4961}
+.section{margin-top:18px}
+.section h2{margin:0 0 10px;font-size:20px}
+.section p{margin:0 0 10px;color:var(--muted);line-height:1.55}
+.cmds{
+  display:grid;gap:8px;margin-top:8px;
+}
+.cmd{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:12px;background:#0b1018;border:1px solid #1f2a3c;border-radius:10px;padding:10px 12px;
+}
+.note{border-left:3px solid var(--accent2);padding-left:10px;color:#d5e7ff}
+@media (max-width: 900px){
+  .hero{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr}
+  .hero h1{font-size:28px}
+}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <span class="brand">ACL QUICKSTART</span>
+      <span>•</span>
+      <a href="/">Home</a>
+      <a href="/agenticflow">Agentic Flow</a>
+      <a href="/playground">Playground</a>
+      <a href="https://github.com/ranausmanai/acl" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+
+    <div class="hero">
+      <div class="card">
+        <h1>Make Your App Agent-Ready in 5 Minutes</h1>
+        <p>
+          ACL helps existing app capabilities (APIs, MCP tools, Zapier actions, CLIs) become safer for AI agents to use.
+          You define the allowed actions and checks, ACL runs the workflow, and every run produces a receipt.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="/agenticflow">Start Guided Tutorial</a>
+          <a class="btn secondary" href="/playground">Open Playground</a>
+          <a class="btn" href="https://github.com/ranausmanai/acl" target="_blank" rel="noreferrer">View GitHub</a>
+        </div>
+        <div class="mini">Recommended path: <strong>/agenticflow</strong> to learn the pattern, then <strong>/playground</strong> to prototype your own contracts.</div>
+      </div>
+      <div class="card">
+<pre>LLM (intent/slots)  ->  ACL contract  ->  Tools/APIs
+         \                 |               /
+          \                |              /
+           +----- receipts / checks / preview-confirm ----+
+
+APIs give access.
+ACL gives control.</pre>
+      </div>
+    </div>
+
+    <div class="grid section">
+      <div class="card step">
+        <h3>1. Understand the Pattern</h3>
+        <p>Use the guided tutorial in <code>/agenticflow</code>. Run a request, inspect the generated ACL, then open the receipt summary and full JSON proof.</p>
+        <div class="links">
+          <a class="chip" href="/agenticflow">Open /agenticflow</a>
+          <a class="chip" href="/agenticflow">Tutorial + Demos</a>
+        </div>
+      </div>
+      <div class="card step">
+        <h3>2. Prototype a Contract</h3>
+        <p>Use the playground to load a template, modify the steps, and run it directly. Start with read flows, then try preview/confirm patterns for writes.</p>
+        <div class="links">
+          <a class="chip" href="/playground">Open /playground</a>
+          <a class="chip" href="/playground">Load Templates</a>
+        </div>
+      </div>
+      <div class="card step">
+        <h3>3. Wrap App Capabilities</h3>
+        <p>Expose a few actions as tools (API wrappers, MCP, Zapier, or CLI), then define one or two ACL flows around them with checks and receipts.</p>
+        <div class="links">
+          <a class="chip" href="https://github.com/ranausmanai/acl/blob/main/docs/make-your-app-agent-ready.md" target="_blank" rel="noreferrer">Builder Guide</a>
+          <a class="chip" href="https://github.com/ranausmanai/acl/blob/main/docs/zapier-bridge.md" target="_blank" rel="noreferrer">Zapier Bridge</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card section">
+      <h2>Quick Commands</h2>
+      <p>Run locally and iterate quickly:</p>
+      <div class="cmds">
+        <div class="cmd">go run ./cmd/acl serve</div>
+        <div class="cmd">acl run examples/your_flow.acl</div>
+        <div class="cmd">acl check examples/your_flow.acl</div>
+      </div>
+      <p class="note section">Production recommendation: use the LLM to extract structured intent (JSON), compile to ACL templates, and keep freeform ACL generation as fallback for novel requests.</p>
+    </div>
+  </div>
+</body>
+</html>

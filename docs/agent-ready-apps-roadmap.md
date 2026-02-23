@@ -138,6 +138,28 @@ Practical rules:
 - use templates/compilers for common actions
 - use freeform generation as fallback, not default
 
+## Recommended Path (Today vs Production)
+
+### Good today (demos, exploration, fallback)
+- Natural language -> prompt-grounded ACL generation
+- Run ACL directly
+- Inspect receipts and iterate
+
+This is excellent for proving workflows quickly and for exploratory use cases.
+
+### Recommended for production (common flows)
+- LLM -> structured intent/slots (JSON)
+- template/compiler -> ACL
+- ACL runtime -> execution + receipts
+
+Why:
+- lower token cost
+- fewer syntax failures
+- clearer approval UX
+- easier testing and replay
+
+Keep freeform NL -> ACL generation as a fallback for novel requests.
+
 ## Ecosystem Strategy
 
 ### Zapier (breadth)

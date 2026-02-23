@@ -30,7 +30,17 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .mode-tab { border:1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 7px 12px; font-size:12px; cursor:pointer; transition: all .15s; }
 .mode-tab:hover { border-color:#3f3f46; color: var(--text); }
 .mode-tab.active { background: rgba(34,197,94,0.12); color: #bbf7d0; border-color: rgba(34,197,94,0.35); }
+.mode-actions { display:flex; gap:8px; margin-left: 8px; }
+.mode-btn { border:1px solid var(--border); background: #111827; color: #d1d5db; border-radius: 999px; padding: 7px 11px; font-size: 11px; cursor: pointer; }
+.mode-btn:hover { border-color:#3f3f46; color:#fff; }
 .mode-caption { margin-left:auto; color: var(--subtle); font-size:12px; }
+.tutorial-drawer-wrap { border-bottom:1px solid var(--border); background: rgba(10,11,15,0.7); }
+.tutorial-drawer { max-width:980px; margin:0 auto; padding: 10px 16px 12px; }
+.tutorial-drawer.hidden { display:none; }
+.tutorial-topline { display:flex; align-items:center; justify-content:space-between; gap: 10px; margin-bottom:8px; }
+.tutorial-progress { color: var(--subtle); font-size: 11px; }
+.tutorial-close { border:1px solid var(--border); background:#0f1117; color:var(--muted); border-radius:999px; padding:5px 9px; font-size:11px; cursor:pointer; }
+.tutorial-close:hover { color:var(--text); border-color:#3f3f46; }
 .chat-shell { flex:1; min-height:0; display:flex; flex-direction:column; max-width: 980px; width:100%; margin:0 auto; }
 .messages { flex:1; min-height:0; overflow-y:auto; padding: 20px 16px; display:flex; flex-direction:column; gap:14px; }
 .msg { max-width: 86%; animation: fade .18s ease; }
@@ -104,6 +114,13 @@ textarea::placeholder { color: var(--subtle); }
 .receipt-row .name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color:#d4d4d8; }
 .receipt-row .tool { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color:#93c5fd; font-size:11px; }
 .receipt-row .dur { margin-left:auto; color: var(--subtle); font-size:11px; }
+.approval-bar { margin-top: 10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding: 10px; border-radius: 10px; border:1px solid rgba(59,130,246,0.25); background: rgba(59,130,246,0.08); }
+.approval-label { font-size: 12px; color: #dbeafe; margin-right: auto; }
+.approval-pill { display:inline-flex; align-items:center; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; border-radius:999px; padding:3px 8px; border:1px solid rgba(250,204,21,0.3); background: rgba(250,204,21,0.1); color:#fde68a; }
+.approval-pill.executed { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.1); color:#bbf7d0; }
+.approval-btn { border:1px solid var(--border); border-radius: 999px; padding: 7px 11px; font-size: 11px; cursor: pointer; background:#111827; color:#e5e7eb; }
+.approval-btn:hover { border-color:#3f3f46; }
+.approval-btn.confirm { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.35); color:#d1fae5; }
 </style>
 </head>
 <body>
@@ -113,6 +130,7 @@ textarea::placeholder { color: var(--subtle); }
     ACL <span class="logo-sub">Agentic Flow Lab</span>
   </span>
   <a class="nav-link" href="/">Home</a>
+  <a class="nav-link" href="/quickstart">Quickstart</a>
   <a class="nav-link" href="/playground">Playground</a>
   <a class="nav-link" href="/agent">Monarch Demo</a>
   <span class="spacer"></span>
@@ -124,7 +142,33 @@ textarea::placeholder { color: var(--subtle); }
     <div class="modebar">
       <span class="mode-label">Modes</span>
       <div class="mode-tabs" id="mode-tabs"></div>
+      <div class="mode-actions">
+        <button class="mode-btn" id="tutorial-toggle-btn" type="button" onclick="toggleTutorialDrawer()">
+          Tutorial
+        </button>
+        <button class="mode-btn" id="tutorial-reset-btn" type="button" onclick="resetTutorialProgress()">
+          Restart Tutorial
+        </button>
+      </div>
       <div class="mode-caption" id="mode-caption"></div>
+    </div>
+  </div>
+  <div class="tutorial-drawer-wrap" id="tutorial-drawer-wrap">
+    <div class="tutorial-drawer" id="tutorial-drawer">
+      <div class="tutorial-panel" style="margin-top:0">
+        <div class="tutorial-topline">
+          <div class="tutorial-progress" id="tutorial-progress">Tutorial progress: 0/3 complete</div>
+          <button class="tutorial-close" type="button" onclick="toggleTutorialDrawer(false)">Hide tutorial</button>
+        </div>
+        <div class="tutorial-head">
+          <div>
+            <h3>Guided Tutorial: Make An App Agent-Ready</h3>
+            <p>This is the tutorial and demo lab. Use the steps below, then inspect the generated ACL, receipt summary, and full receipt JSON.</p>
+          </div>
+          <div class="tutorial-mini">Reusable panel</div>
+        </div>
+        <div class="tutorial-steps" id="tutorial-drawer-steps"></div>
+      </div>
     </div>
   </div>
 
@@ -146,9 +190,9 @@ textarea::placeholder { color: var(--subtle); }
           <div class="tutorial-head">
             <div>
               <h3>Guided Tutorial: Make An App Agent-Ready</h3>
-              <p>Three short flows that show the ACL pattern: natural-language request → controlled action/preview → receipt + full JSON proof.</p>
+              <p>Three short flows that show the ACL pattern: natural-language request → controlled action/preview → receipt + full JSON proof. You can reopen this anytime using the Tutorial button above.</p>
             </div>
-            <div class="tutorial-mini">Start here</div>
+            <div class="tutorial-mini" id="tutorial-mini-progress">Start here</div>
           </div>
           <div class="tutorial-steps" id="tutorial-steps"></div>
         </div>
@@ -240,11 +284,17 @@ let mode = 'splitwise';
 let busy = false;
 let msgCounter = 0;
 let tutorialStepId = 't1';
+let tutorialDrawerOpen = true;
+let tutorialCompleted = {};
+let pendingTutorialRunStep = '';
 
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const welcomeEl = document.getElementById('welcome');
+const tutorialDrawerWrapEl = document.getElementById('tutorial-drawer-wrap');
+
+const TUTORIAL_STORAGE_KEY = 'acl_agenticflow_tutorial_v1';
 
 const TUTORIAL_STEPS = [
   {
@@ -277,6 +327,48 @@ function esc(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replac
 function fmtMs(ms) { if (!ms) return '0ms'; return ms >= 1000 ? (ms/1000).toFixed(1) + 's' : ms + 'ms'; }
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+function setInputText(text) { inputEl.value = text || ''; autoResize(inputEl); inputEl.focus(); }
+
+function saveTutorialState() {
+  try {
+    localStorage.setItem(TUTORIAL_STORAGE_KEY, JSON.stringify({
+      tutorialStepId, tutorialDrawerOpen, tutorialCompleted
+    }));
+  } catch (_) {}
+}
+
+function loadTutorialState() {
+  try {
+    const raw = localStorage.getItem(TUTORIAL_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data && typeof data === 'object') {
+      if (typeof data.tutorialStepId === 'string' && TUTORIAL_STEPS.some(s => s.id === data.tutorialStepId)) tutorialStepId = data.tutorialStepId;
+      if (typeof data.tutorialDrawerOpen === 'boolean') tutorialDrawerOpen = data.tutorialDrawerOpen;
+      if (data.tutorialCompleted && typeof data.tutorialCompleted === 'object') tutorialCompleted = data.tutorialCompleted;
+    }
+  } catch (_) {}
+}
+
+function tutorialCounts() {
+  const total = TUTORIAL_STEPS.length;
+  let done = 0;
+  for (const step of TUTORIAL_STEPS) if (tutorialCompleted[step.id]) done++;
+  return { done, total };
+}
+
+function nextTutorialStepId(current) {
+  const idx = TUTORIAL_STEPS.findIndex(s => s.id === current);
+  if (idx < 0 || idx >= TUTORIAL_STEPS.length - 1) return '';
+  return TUTORIAL_STEPS[idx + 1].id;
+}
+
+function markTutorialComplete(stepId) {
+  if (!stepId) return;
+  tutorialCompleted[stepId] = true;
+  saveTutorialState();
+  renderTutorial();
+}
 
 function renderModeTabs() {
   const tabs = document.getElementById('mode-tabs');
@@ -290,12 +382,13 @@ function renderModeTabs() {
   }
 }
 
-function renderTutorial() {
-  const root = document.getElementById('tutorial-steps');
+function renderTutorialInto(root) {
   if (!root) return;
   root.innerHTML = '';
   for (const step of TUTORIAL_STEPS) {
     const modeLabel = (MODES[step.mode] && MODES[step.mode].label) || step.mode;
+    const completed = !!tutorialCompleted[step.id];
+    const nextId = nextTutorialStepId(step.id);
     const card = document.createElement('div');
     card.className = 'tutorial-step' + (step.id === tutorialStepId ? ' active' : '');
     card.innerHTML = `
@@ -306,9 +399,11 @@ function renderTutorial() {
       <p>${esc(step.why)}</p>
       <div class="tutorial-prompt">${esc(step.prompt)}</div>
       <div class="tutorial-look"><strong>What to look for:</strong> ${esc(step.lookFor)}</div>
+      ${completed ? '<div class="tutorial-look" style="color:#86efac">Completed</div>' : ''}
       <div class="tutorial-actions">
         <button class="tutorial-btn" data-step="${esc(step.id)}" data-run="0">Load Prompt</button>
         <button class="tutorial-btn primary" data-step="${esc(step.id)}" data-run="1">Run Step</button>
+        ${completed && nextId ? `<button class="tutorial-btn" data-step="${esc(nextId)}" data-run="0">Next Step</button>` : ''}
       </div>
     `;
     root.appendChild(card);
@@ -320,6 +415,35 @@ function renderTutorial() {
       applyTutorialStep(id, run);
     };
   });
+}
+
+function renderTutorial() {
+  renderTutorialInto(document.getElementById('tutorial-steps'));
+  renderTutorialInto(document.getElementById('tutorial-drawer-steps'));
+  const counts = tutorialCounts();
+  const progressText = `Tutorial progress: ${counts.done}/${counts.total} complete`;
+  const progressEl = document.getElementById('tutorial-progress');
+  if (progressEl) progressEl.textContent = progressText;
+  const mini = document.getElementById('tutorial-mini-progress');
+  if (mini) mini.textContent = counts.done > 0 ? `${counts.done}/${counts.total} done` : 'Start here';
+  const btn = document.getElementById('tutorial-toggle-btn');
+  if (btn) btn.textContent = tutorialDrawerOpen ? 'Tutorial (Hide)' : `Tutorial (${counts.done}/${counts.total})`;
+  if (tutorialDrawerWrapEl) tutorialDrawerWrapEl.style.display = tutorialDrawerOpen ? '' : 'none';
+}
+
+function toggleTutorialDrawer(forceState) {
+  tutorialDrawerOpen = typeof forceState === 'boolean' ? forceState : !tutorialDrawerOpen;
+  saveTutorialState();
+  renderTutorial();
+}
+
+function resetTutorialProgress() {
+  tutorialCompleted = {};
+  tutorialStepId = 't1';
+  tutorialDrawerOpen = true;
+  saveTutorialState();
+  renderTutorial();
+  applyTutorialStep('t1', false);
 }
 
 function renderWelcome() {
@@ -337,7 +461,7 @@ function renderWelcome() {
     const el = document.createElement('button');
     el.className = 'suggestion';
     el.textContent = text;
-    el.onclick = () => { inputEl.value = text; send(); };
+    el.onclick = () => { setInputText(text); send(); };
     sug.appendChild(el);
   }
   renderTutorial();
@@ -360,10 +484,12 @@ function applyTutorialStep(stepId, autoRun) {
   } else {
     renderTutorial();
   }
-  inputEl.value = step.prompt;
-  autoResize(inputEl);
-  inputEl.focus();
-  if (autoRun) send();
+  setInputText(step.prompt);
+  saveTutorialState();
+  if (autoRun) {
+    pendingTutorialRunStep = step.id;
+    send();
+  }
 }
 
 function addMessage(type, content) {
@@ -388,6 +514,21 @@ function addThinking() {
 }
 
 function removeThinking() { const el = document.getElementById('thinking'); if (el) el.remove(); }
+
+function approvalBarHTML(data) {
+  const approval = data && data.ui_hints && data.ui_hints.approval;
+  if (!approval) return '';
+  const phase = String(approval.phase || '').toLowerCase();
+  const label = approval.label || (phase === 'preview' ? 'Confirmation required' : 'Action update');
+  const pillClass = phase === 'executed' ? 'approval-pill executed' : 'approval-pill';
+  let html = `<div class="approval-bar"><span class="${pillClass}">${esc(phase || 'preview')}</span><span class="approval-label">${esc(label)}</span>`;
+  if (approval.required && approval.confirm_request) {
+    html += `<button class="approval-btn confirm" type="button" onclick="confirmApproval(this)" data-confirm="${esc(approval.confirm_request)}">Confirm</button>`;
+    html += `<button class="approval-btn" type="button" onclick="editApproval(this)" data-edit="${esc(data.request || '')}">${esc(approval.cancel_label || 'Edit request')}</button>`;
+  }
+  html += '</div>';
+  return html;
+}
 
 function buildAgentResponse(data) {
   let html = '';
@@ -415,6 +556,8 @@ function buildAgentResponse(data) {
     }
   }
 
+  html += approvalBarHTML(data);
+
   if (data.receipt) {
     const rid = 'receipt-' + (++msgCounter);
     let pretty = '';
@@ -435,6 +578,20 @@ function toggleACL(id) {
   if (!code || !arrow) return;
   code.classList.toggle('visible');
   arrow.classList.toggle('open');
+}
+
+function confirmApproval(btn) {
+  if (!btn) return;
+  const confirmText = btn.getAttribute('data-confirm') || '';
+  if (!confirmText) return;
+  setInputText(confirmText);
+  send();
+}
+
+function editApproval(btn) {
+  if (!btn) return;
+  const original = btn.getAttribute('data-edit') || '';
+  setInputText(original);
 }
 
 async function send() {
@@ -465,11 +622,15 @@ async function send() {
       div.innerHTML = buildAgentResponse(data);
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      if (pendingTutorialRunStep && data.receipt && String(data.receipt.status || '').toLowerCase() === 'success') {
+        markTutorialComplete(pendingTutorialRunStep);
+      }
     }
   } catch (e) {
     removeThinking();
     addMessage('error', 'Request failed: ' + esc(e.message));
   } finally {
+    pendingTutorialRunStep = '';
     busy = false;
     sendBtn.disabled = false;
     inputEl.focus();
@@ -489,8 +650,10 @@ async function checkHealth() {
   }
 }
 
+loadTutorialState();
 renderModeTabs();
 renderWelcome();
+renderTutorial();
 checkHealth();
 setInterval(checkHealth, 30000);
 inputEl.focus();

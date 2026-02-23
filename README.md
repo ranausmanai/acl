@@ -43,6 +43,7 @@ You can treat ACL as the contract layer between:
 
 Try the live demos and guided tutorial:
 
+- `https://acl.fyi/quickstart` — builder quickstart (5-minute onboarding path)
 - `https://acl.fyi/agenticflow` — multi-mode demo lab (Splitwise, Calendar, Support, Zapier, Monarch)
 - `https://acl.fyi/playground` — author and run ACL directly
 
@@ -128,6 +129,14 @@ go build -o acl ./cmd/acl
 
 ## Quickstart
 
+Start here (recommended):
+
+- `https://acl.fyi/quickstart` — builder onboarding path
+- `https://acl.fyi/agenticflow` — guided tutorial + demos
+- `https://acl.fyi/playground` — template-based prototyping
+
+CLI quickstart:
+
 ```bash
 # Start a new project
 acl init my-workflow
@@ -157,6 +166,7 @@ acl serve main.acl --port 8080
 
 See:
 
+- `docs/make-your-app-agent-ready.md` — practical builder guide (start here for integrations)
 - `docs/agent-ready-apps-roadmap.md` — architecture and roadmap
 - `docs/zapier-bridge.md` — ACL x Zapier bridge MVP
 

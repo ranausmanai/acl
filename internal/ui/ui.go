@@ -15,6 +15,9 @@ var agentHTML []byte
 //go:embed agenticflow.html
 var agenticFlowHTML []byte
 
+//go:embed quickstart.html
+var quickstartHTML []byte
+
 // Handler returns an http.Handler that serves the dashboard HTML.
 func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -39,5 +42,14 @@ func AgenticFlowHandler() http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write(agenticFlowHTML) //nolint
+	})
+}
+
+// QuickstartHandler returns an http.Handler that serves the quickstart UI.
+func QuickstartHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write(quickstartHTML) //nolint
 	})
 }

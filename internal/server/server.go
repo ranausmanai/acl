@@ -136,6 +136,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /agent", s.handleAgent)
 	mux.Handle("GET /agenticflow", ui.AgenticFlowHandler())
 	mux.HandleFunc("POST /agenticflow", s.handleAgenticFlow)
+	mux.Handle("GET /quickstart", ui.QuickstartHandler())
 	return mux
 }
 
@@ -858,7 +859,123 @@ func (s *Server) handleAgenticFlow(w http.ResponseWriter, r *http.Request) {
 	if runErr != nil && rec == nil {
 		response["error"] = runErr.Error()
 	}
+	if hints := deriveAgenticFlowUIHints(mode.ID, body.Request, rec); hints != nil {
+		response["ui_hints"] = hints
+	}
 	writeJSON(w, http.StatusOK, response)
+}
+
+func deriveAgenticFlowUIHints(modeID, originalRequest string, rec *receipt.Receipt) map[string]any {
+	if rec == nil || len(rec.Agents) == 0 {
+		return nil
+	}
+	var lastStepResult map[string]any
+	agent := rec.Agents[len(rec.Agents)-1]
+	for i := len(agent.Steps) - 1; i >= 0; i-- {
+		if m, ok := agent.Steps[i].Result.(map[string]any); ok {
+			lastStepResult = m
+			break
+		}
+	}
+
+	trimmed := strings.TrimSpace(originalRequest)
+	lowerReq := strings.ToLower(trimmed)
+	alreadyApproved := strings.Contains(lowerReq, "(approved)") ||
+		strings.Contains(lowerReq, " approved") ||
+		strings.Contains(lowerReq, "confirm") ||
+		strings.Contains(lowerReq, "yes create") ||
+		strings.Contains(lowerReq, "do it")
+
+	// Strong signal: zapier preview tool result.
+	if preview := findToolStepResult(agent.Steps, "zapier.invoke"); preview != nil {
+		status, _ := preview["status"].(string)
+		if status == "preview" {
+			return map[string]any{
+				"approval": map[string]any{
+					"required":        true,
+					"phase":           "preview",
+					"label":           "Execute Zapier action",
+					"confirm_request": appendApprovedMarker(trimmed),
+					"cancel_label":    "Edit request",
+				},
+			}
+		}
+		if status == "accepted" || status == "not_configured" {
+			return map[string]any{
+				"approval": map[string]any{
+					"required": false,
+					"phase":    "executed",
+					"label":    "Action executed",
+				},
+			}
+		}
+	}
+
+	// Heuristic support for known demo modes using text conventions.
+	if rec.Status == "success" && !alreadyApproved {
+		switch modeID {
+		case "support_refund", "calendar", "splitwise":
+			text := ""
+			if lastStepResult != nil {
+				if t, ok := lastStepResult["text"].(string); ok {
+					text = strings.ToLower(t)
+				}
+				if text == "" {
+					if m, ok := lastStepResult["message"].(string); ok {
+						text = strings.ToLower(m)
+					}
+				}
+			}
+			if strings.Contains(text, "confirm") || strings.Contains(text, "before creating") || strings.Contains(text, "do not execute") {
+				return map[string]any{
+					"approval": map[string]any{
+						"required":        true,
+						"phase":           "preview",
+						"label":           "Confirmation required",
+						"confirm_request": appendApprovedMarker(trimmed),
+						"cancel_label":    "Edit request",
+					},
+				}
+			}
+		}
+	}
+
+	if alreadyApproved && rec.Status == "success" {
+		return map[string]any{
+			"approval": map[string]any{
+				"required": false,
+				"phase":    "executed",
+				"label":    "Confirmed and executed",
+			},
+		}
+	}
+
+	return nil
+}
+
+func findToolStepResult(steps []receipt.StepTrace, target string) map[string]any {
+	for i := len(steps) - 1; i >= 0; i-- {
+		st := steps[i]
+		if st.Target != target {
+			continue
+		}
+		if m, ok := st.Result.(map[string]any); ok {
+			return m
+		}
+	}
+	return nil
+}
+
+func appendApprovedMarker(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return "(approved)"
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "(approved)") {
+		return trimmed
+	}
+	return trimmed + " (approved)"
 }
 
 func (s *Server) repairACLCode(ctx context.Context, userRequest, modeID, badACL, parseErr string) (string, error) {

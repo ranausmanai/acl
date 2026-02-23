@@ -7,6 +7,10 @@ Why this matters:
 - Zapier gives access to many apps
 - ACL adds safety (preview-first), checks, and receipts
 
+If you're new to ACL, start with:
+- `https://acl.fyi/quickstart` (builder onboarding)
+- `docs/make-your-app-agent-ready.md` (practical integration guide)
+
 ## Tool
 - `zapier.invoke`
 
