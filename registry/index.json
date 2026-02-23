@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "updated_at": "2026-02-20T00:00:00Z",
+  "services": [
+    {
+      "name": "competitor-monitor",
+      "owner": "ranausmanai",
+      "description": "Real-time competitor price intelligence monitor with cross-run comparison and LLM analysis",
+      "tags": ["monitoring", "finance", "llm", "schedule"],
+      "repo": "https://github.com/ranausmanai/acl",
+      "acl_path": "examples/competitor_monitor.acl",
+      "schema_url": "https://raw.githubusercontent.com/ranausmanai/acl/main/registry/schemas/competitor-monitor.json",
+      "stars": 0,
+      "published_at": "2026-02-20T00:00:00Z"
+    },
+    {
+      "name": "news-briefing",
+      "owner": "ranausmanai",
+      "description": "Fetch top HackerNews stories, analyse trends, and produce a LLM-written daily brief",
+      "tags": ["news", "llm", "summarisation"],
+      "repo": "https://github.com/ranausmanai/acl",
+      "acl_path": "demo.acl",
+      "schema_url": "https://raw.githubusercontent.com/ranausmanai/acl/main/registry/schemas/news-briefing.json",
+      "stars": 0,
+      "published_at": "2026-02-20T00:00:00Z"
+    }
+  ]
+}

@@ -7,12 +7,14 @@
 //	http.get(url)                                  → {status, text, url}
 //	http.request(url, method, body, headers, …)   → {status, text, json, url, method}
 //	search.web(query, limit)                       → {hits:[{title,url,snippet}], count, provider}
+//	browser.fetch(url, selector)                   → {url, status, title, text, word_count}
 //
 // AI & LLM
 //
 //	llm.generate(prompt, data, format, provider)   → {text, model, tokens, provider}
 //	vision.describe(url|path, prompt)              → {description, model, provider}
 //	audio.transcribe(file, language)               → {text, language, duration_s, segments}
+//	react.run(goal, tools, max_steps, context)     → {answer, steps_taken, log}
 //
 // Data
 //
@@ -35,6 +37,7 @@
 //	memory.get(key, namespace)                     → {key, value, found, stored_at}
 //	memory.delete(key, namespace)                  → {key, namespace, deleted}
 //	memory.list(namespace, limit)                  → {entries, namespace, count}
+//	memory.messages(session, op, role, content)    → {session, messages, count}
 //	vector.upsert(id, text, collection, metadata)  → {id, collection, model, dimensions}
 //	vector.search(query, collection, limit)        → {results:[{id,text,score}], count}
 //	vector.delete(id, collection)                  → {deleted, id, collection}
@@ -82,11 +85,13 @@ func NewRegistry() *protocol.Registry {
 	reg.RegisterBuiltin("http.get", httpGet, "2")
 	reg.RegisterBuiltin("http.request", httpRequest, "1")
 	reg.RegisterBuiltin("search.web", searchWeb, "1")
+	reg.RegisterBuiltin("browser.fetch", browserFetch, "1")
 
 	// AI & LLM
 	reg.RegisterBuiltin("llm.generate", llmGenerate, "2")
 	reg.RegisterBuiltin("vision.describe", visionDescribe, "1")
 	reg.RegisterBuiltin("audio.transcribe", audioTranscribe, "1")
+	reg.RegisterBuiltin("react.run", makeReactRun(reg), "1")
 
 	// Data
 	reg.RegisterBuiltin("extract.table", extractTable, "1")
@@ -107,6 +112,7 @@ func NewRegistry() *protocol.Registry {
 	reg.RegisterBuiltin("memory.get", memoryGet, "1")
 	reg.RegisterBuiltin("memory.delete", memoryDelete, "1")
 	reg.RegisterBuiltin("memory.list", memoryList, "1")
+	reg.RegisterBuiltin("memory.messages", memoryMessages, "1")
 	reg.RegisterBuiltin("vector.upsert", vectorUpsert, "1")
 	reg.RegisterBuiltin("vector.search", vectorSearch, "1")
 	reg.RegisterBuiltin("vector.delete", vectorDelete, "1")
@@ -115,6 +121,18 @@ func NewRegistry() *protocol.Registry {
 	reg.RegisterBuiltin("pdf.render", pdfRender, "2")
 	reg.RegisterBuiltin("email.draft", emailDraft, "2")
 	reg.RegisterBuiltin("code.run", codeRun, "1")
+	reg.RegisterBuiltin("zapier.invoke", zapierInvoke, "1")
+
+	// Demo sandbox tools (for /agenticflow demos)
+	reg.RegisterBuiltin("demo.splitwise.find_contact", demoSplitwiseFindContact, "1")
+	reg.RegisterBuiltin("demo.splitwise.create_expense", demoSplitwiseCreateExpense, "1")
+	reg.RegisterBuiltin("demo.splitwise.get_balances", demoSplitwiseGetBalances, "1")
+	reg.RegisterBuiltin("demo.support.get_order", demoSupportGetOrder, "1")
+	reg.RegisterBuiltin("demo.support.refund_order", demoSupportRefundOrder, "1")
+	reg.RegisterBuiltin("demo.support.send_email", demoSupportSendEmail, "1")
+	reg.RegisterBuiltin("demo.calendar.find_event", demoCalendarFindEvent, "1")
+	reg.RegisterBuiltin("demo.calendar.move_event", demoCalendarMoveEvent, "1")
+	reg.RegisterBuiltin("demo.calendar.send_note", demoCalendarSendNote, "1")
 
 	return reg
 }
@@ -129,11 +147,13 @@ func NewMockRegistry() *protocol.Registry {
 	reg.RegisterBuiltin("http.get", mockHTTPGet, "2")
 	reg.RegisterBuiltin("http.request", mockHTTPRequest, "1")
 	reg.RegisterBuiltin("search.web", mockSearchWeb, "1")
+	reg.RegisterBuiltin("browser.fetch", mockBrowserFetch, "1")
 
 	// AI & LLM — mocked
 	reg.RegisterBuiltin("llm.generate", mockLLMGenerate, "2")
 	reg.RegisterBuiltin("vision.describe", mockVisionDescribe, "1")
 	reg.RegisterBuiltin("audio.transcribe", mockAudioTranscribe, "1")
+	reg.RegisterBuiltin("react.run", mockReactRun, "1")
 
 	// Data — real implementations (pure computation, no I/O)
 	reg.RegisterBuiltin("extract.table", extractTable, "1")
@@ -154,6 +174,7 @@ func NewMockRegistry() *protocol.Registry {
 	reg.RegisterBuiltin("memory.get", memoryGet, "1")
 	reg.RegisterBuiltin("memory.delete", memoryDelete, "1")
 	reg.RegisterBuiltin("memory.list", memoryList, "1")
+	reg.RegisterBuiltin("memory.messages", memoryMessages, "1")
 	reg.RegisterBuiltin("vector.upsert", mockVectorUpsert, "1")
 	reg.RegisterBuiltin("vector.search", mockVectorSearch, "1")
 	reg.RegisterBuiltin("vector.delete", vectorDelete, "1")
@@ -162,6 +183,18 @@ func NewMockRegistry() *protocol.Registry {
 	reg.RegisterBuiltin("pdf.render", pdfRender, "2")
 	reg.RegisterBuiltin("email.draft", mockEmailDraft, "2")
 	reg.RegisterBuiltin("code.run", codeRun, "1") // real — uses subprocess, safe for tests
+	reg.RegisterBuiltin("zapier.invoke", zapierInvoke, "1")
+
+	// Demo sandbox tools
+	reg.RegisterBuiltin("demo.splitwise.find_contact", demoSplitwiseFindContact, "1")
+	reg.RegisterBuiltin("demo.splitwise.create_expense", demoSplitwiseCreateExpense, "1")
+	reg.RegisterBuiltin("demo.splitwise.get_balances", demoSplitwiseGetBalances, "1")
+	reg.RegisterBuiltin("demo.support.get_order", demoSupportGetOrder, "1")
+	reg.RegisterBuiltin("demo.support.refund_order", demoSupportRefundOrder, "1")
+	reg.RegisterBuiltin("demo.support.send_email", demoSupportSendEmail, "1")
+	reg.RegisterBuiltin("demo.calendar.find_event", demoCalendarFindEvent, "1")
+	reg.RegisterBuiltin("demo.calendar.move_event", demoCalendarMoveEvent, "1")
+	reg.RegisterBuiltin("demo.calendar.send_note", demoCalendarSendNote, "1")
 
 	return reg
 }
@@ -264,5 +297,25 @@ func mockVectorSearch(_ context.Context, args map[string]any) (any, error) {
 		"query":      query,
 		"collection": collection,
 		"model":      "mock",
+	}, nil
+}
+
+func mockBrowserFetch(_ context.Context, args map[string]any) (any, error) {
+	url, _ := args["url"].(string)
+	return map[string]any{
+		"url":        url,
+		"status":     200,
+		"title":      "Mock Page",
+		"text":       "Mock web page content for: " + url,
+		"word_count": 7,
+	}, nil
+}
+
+func mockReactRun(_ context.Context, args map[string]any) (any, error) {
+	goal, _ := args["goal"].(string)
+	return map[string]any{
+		"answer":      "Mock answer for goal: " + goal,
+		"steps_taken": 1,
+		"log":         []any{},
 	}, nil
 }

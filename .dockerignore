@@ -1,0 +1,7 @@
+.acl_cache/
+*.db
+receipt.json
+receipts/
+.env
+.git/
+*.jsonl

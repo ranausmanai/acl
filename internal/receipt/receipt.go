@@ -60,6 +60,7 @@ type StepTrace struct {
 	Args          map[string]any `json:"args"`
 	OutputHash    string         `json:"output_hash"`
 	OutputPreview string         `json:"output_preview"`
+	Result        any            `json:"result,omitempty"`
 	CacheHit      bool           `json:"cache_hit"`
 	CheckExpr     string         `json:"check_expr,omitempty"`
 	CheckPassed   *bool          `json:"check_passed"`

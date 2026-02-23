@@ -49,7 +49,7 @@ var topLevelKws = map[lexer.TokenType]bool{
 var agentBodyKws = map[lexer.TokenType]bool{
 	lexer.KWIN: true, lexer.KWOUT: true, lexer.KWTOOLS: true,
 	lexer.KWMUST: true, lexer.KWSTEP: true, lexer.KWRESULT: true,
-	lexer.KWPARALLEL: true,
+	lexer.KWPARALLEL: true, lexer.KWIF: true, lexer.KWFOREACH: true,
 }
 
 // stepTrailKws follow a STEP line immediately.
@@ -336,6 +336,18 @@ func (p *parser) parseAgentBody(name string, line int) (*ast.AgentDef, error) {
 				return nil, pe(p.cur().Line, "RESULT expression: %v", err)
 			}
 			agent.ResultExpr = expr
+		case lexer.KWIF:
+			step, err := p.parseIfBlock()
+			if err != nil {
+				return nil, err
+			}
+			agent.Steps = append(agent.Steps, step)
+		case lexer.KWFOREACH:
+			step, err := p.parseForeachBlock()
+			if err != nil {
+				return nil, err
+			}
+			agent.Steps = append(agent.Steps, step)
 		default:
 			p.consumeLine() // skip unknown
 		}
@@ -411,6 +423,132 @@ func (p *parser) parseStep() (*ast.StepDef, error) {
 		}
 	}
 	return step, nil
+}
+
+// ── IF / FOREACH ──────────────────────────────────────────────────────────────
+
+// parseIfBlock handles: IF expr … ELSE … END
+func (p *parser) parseIfBlock() (*ast.StepDef, error) {
+	line := p.cur().Line
+	toks := p.consumeLine() // [IF, ...expr...]
+	if len(toks) < 2 {
+		return nil, pe(line, "IF requires a condition expression")
+	}
+	exprStr := tokensToString(toks[1:])
+	cond, err := evidence.Parse(exprStr)
+	if err != nil {
+		return nil, pe(line, "IF condition: %v", err)
+	}
+
+	thenSteps, elseSteps, err := p.parseIfBody(line)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.StepDef{
+		Kind:   ast.SKIf,
+		IfCond: cond,
+		IfThen: thenSteps,
+		IfElse: elseSteps,
+		Line:   line,
+	}, nil
+}
+
+// parseIfBody reads STEP/IF/FOREACH lines until ELSE or END.
+// Returns (thenSteps, elseSteps, error).
+func (p *parser) parseIfBody(ifLine int) ([]*ast.StepDef, []*ast.StepDef, error) {
+	var thenSteps, elseSteps []*ast.StepDef
+	inElse := false
+	for {
+		p.skipNewlines()
+		kw := p.cur().Type
+		if kw == lexer.EOF {
+			return nil, nil, pe(ifLine, "IF block missing END")
+		}
+		if kw == lexer.KWEND {
+			p.consumeLine()
+			break
+		}
+		if kw == lexer.KWELSE {
+			p.consumeLine()
+			inElse = true
+			continue
+		}
+		step, err := p.parseBlockStep()
+		if err != nil {
+			return nil, nil, err
+		}
+		if step != nil {
+			if inElse {
+				elseSteps = append(elseSteps, step)
+			} else {
+				thenSteps = append(thenSteps, step)
+			}
+		}
+	}
+	return thenSteps, elseSteps, nil
+}
+
+// parseForeachBlock handles: FOREACH var IN expr … END
+func (p *parser) parseForeachBlock() (*ast.StepDef, error) {
+	line := p.cur().Line
+	toks := p.consumeLine() // [FOREACH, var, IN, ...expr...]
+	if len(toks) < 4 {
+		return nil, pe(line, "FOREACH requires: FOREACH var IN expr")
+	}
+	if toks[1].Type != lexer.IDENT {
+		return nil, pe(line, "FOREACH: expected variable name, got %q", toks[1].Literal)
+	}
+	if toks[2].Type != lexer.KWIN {
+		return nil, pe(line, "FOREACH: expected IN, got %q", toks[2].Literal)
+	}
+	varName := toks[1].Literal
+	exprStr := tokensToString(toks[3:])
+	over, err := evidence.Parse(exprStr)
+	if err != nil {
+		return nil, pe(line, "FOREACH expression: %v", err)
+	}
+
+	var body []*ast.StepDef
+	for {
+		p.skipNewlines()
+		kw := p.cur().Type
+		if kw == lexer.EOF {
+			return nil, pe(line, "FOREACH block missing END")
+		}
+		if kw == lexer.KWEND {
+			p.consumeLine()
+			break
+		}
+		step, err := p.parseBlockStep()
+		if err != nil {
+			return nil, err
+		}
+		if step != nil {
+			body = append(body, step)
+		}
+	}
+	return &ast.StepDef{
+		Kind:        ast.SKForeach,
+		ForeachVar:  varName,
+		ForeachOver: over,
+		ForeachBody: body,
+		Line:        line,
+	}, nil
+}
+
+// parseBlockStep parses one statement inside an IF or FOREACH body.
+func (p *parser) parseBlockStep() (*ast.StepDef, error) {
+	switch p.cur().Type {
+	case lexer.KWSTEP:
+		return p.parseStep()
+	case lexer.KWIF:
+		return p.parseIfBlock()
+	case lexer.KWFOREACH:
+		return p.parseForeachBlock()
+	default:
+		p.consumeLine()
+		return nil, nil
+	}
 }
 
 // ── TEMPLATE ──────────────────────────────────────────────────────────────────
@@ -580,9 +718,18 @@ func parseKWArgs(raw string, line int) (map[string]*ast.Arg, error) {
 
 // parseArgValue tries to parse valRaw as a literal; falls back to ExprRef.
 func parseArgValue(raw string, line int) (*ast.Arg, error) {
-	// String literal
+	// String literal — check for {expr} interpolation
 	if strings.HasPrefix(raw, `"`) {
 		s := strings.Trim(raw, `"`)
+		if strings.Contains(s, "{") {
+			parts, hasInterp, err := parseInterpolatedString(s, line)
+			if err != nil {
+				return nil, err
+			}
+			if hasInterp {
+				return &ast.Arg{Parts: parts}, nil
+			}
+		}
 		return &ast.Arg{Literal: s, IsLiteral: true}, nil
 	}
 	// List literal
@@ -739,6 +886,41 @@ func parseDuration(s string) (float64, error) {
 		return strconv.ParseFloat(s[:len(s)-1], 64)
 	}
 	return strconv.ParseFloat(s, 64)
+}
+
+// parseInterpolatedString splits a string like "Hello {user.name}, you owe {balance}"
+// into ArgParts.  Returns (parts, hasInterpolation, error).
+func parseInterpolatedString(s string, line int) ([]ast.ArgPart, bool, error) {
+	var parts []ast.ArgPart
+	hasInterp := false
+	for len(s) > 0 {
+		lbrace := strings.Index(s, "{")
+		if lbrace < 0 {
+			parts = append(parts, ast.ArgPart{Text: s})
+			break
+		}
+		if lbrace > 0 {
+			parts = append(parts, ast.ArgPart{Text: s[:lbrace]})
+		}
+		s = s[lbrace+1:]
+		rbrace := strings.Index(s, "}")
+		if rbrace < 0 {
+			// No closing brace — treat remainder as literal text
+			parts = append(parts, ast.ArgPart{Text: "{" + s})
+			break
+		}
+		exprStr := strings.TrimSpace(s[:rbrace])
+		s = s[rbrace+1:]
+		expr, err := evidence.Parse(exprStr)
+		if err != nil {
+			// Not a valid ACL expression (e.g. Python dict literal) — keep as literal text.
+			parts = append(parts, ast.ArgPart{Text: "{" + exprStr + "}"})
+			continue
+		}
+		parts = append(parts, ast.ArgPart{Expr: expr})
+		hasInterp = true
+	}
+	return parts, hasInterp, nil
 }
 
 // splitTopLevelCommas splits on commas that are not inside brackets/parens/quotes.

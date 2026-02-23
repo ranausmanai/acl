@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACL Agentic Flow Lab</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #09090b; --panel: #111217; --panel2: #161922; --border: #272b38;
+  --text: #e5e7eb; --muted: #a1a1aa; --subtle: #71717a;
+  --accent: #22c55e; --accent2: #16a34a; --blue: #3b82f6;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(circle at 15% -10%, rgba(34,197,94,0.12), transparent 45%), radial-gradient(circle at 100% 0%, rgba(59,130,246,0.10), transparent 35%), var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 16px; flex-shrink: 0; }
+.logo { display:flex; align-items:center; gap:8px; font-weight:700; letter-spacing:.04em; }
+.logo-sub { font-size: 12px; color: var(--muted); font-weight: 500; }
+.nav-link { color: var(--muted); text-decoration:none; font-size:13px; }
+.nav-link:hover { color: var(--text); }
+.spacer { flex: 1; }
+.health { display:flex; align-items:center; gap:6px; font-size:11px; color: var(--subtle); }
+.health .dot { width:7px; height:7px; border-radius:50%; background:#52525b; }
+.health .dot.on { background: var(--accent); }
+.main { flex:1; display:flex; flex-direction:column; min-height:0; }
+.modebar-wrap { border-bottom: 1px solid var(--border); background: rgba(17,18,23,0.7); }
+.modebar { max-width: 980px; margin: 0 auto; padding: 10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.mode-label { color: var(--subtle); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.mode-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+.mode-tab { border:1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 7px 12px; font-size:12px; cursor:pointer; transition: all .15s; }
+.mode-tab:hover { border-color:#3f3f46; color: var(--text); }
+.mode-tab.active { background: rgba(34,197,94,0.12); color: #bbf7d0; border-color: rgba(34,197,94,0.35); }
+.mode-caption { margin-left:auto; color: var(--subtle); font-size:12px; }
+.chat-shell { flex:1; min-height:0; display:flex; flex-direction:column; max-width: 980px; width:100%; margin:0 auto; }
+.messages { flex:1; min-height:0; overflow-y:auto; padding: 20px 16px; display:flex; flex-direction:column; gap:14px; }
+.msg { max-width: 86%; animation: fade .18s ease; }
+@keyframes fade { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none;} }
+.msg-user { align-self:flex-end; }
+.msg-agent, .msg-error { align-self:flex-start; }
+.msg-bubble { border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.55; word-wrap: break-word; }
+.msg-user .msg-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.msg-agent .msg-bubble { background: var(--panel2); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px; }
+.msg-error .msg-bubble { background: #2a1013; border: 1px solid #5f1d24; color: #fecaca; border-bottom-left-radius: 4px; }
+.thinking { align-self:flex-start; display:flex; align-items:center; gap:8px; background: var(--panel2); border:1px solid var(--border); padding: 12px 14px; border-radius:14px; border-bottom-left-radius:4px; }
+.thinking-dots { display:flex; gap:4px; }
+.thinking-dots span { width: 6px; height: 6px; border-radius: 999px; background: #52525b; animation: bounce 1.4s infinite; }
+.thinking-dots span:nth-child(2) { animation-delay: .2s; }
+.thinking-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce { 0%,80%,100% { transform: scale(.8); opacity:.5; } 40% { transform: scale(1.2); opacity:1; } }
+.thinking-text { color: var(--muted); font-size: 12px; }
+.welcome { margin: auto; width: 100%; max-width: 840px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border-radius: 16px; padding: 20px; }
+.welcome h2 { font-size: 20px; margin-bottom: 6px; letter-spacing: -0.02em; }
+.welcome p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 14px; max-width: 700px; }
+.welcome-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .welcome-grid { grid-template-columns: 1fr; } .mode-caption { width:100%; margin-left:0; } }
+.suggestions { display:flex; flex-wrap: wrap; gap: 8px; }
+.suggestion { border:1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor:pointer; }
+.suggestion:hover { color: var(--text); border-color:#3f3f46; }
+.mode-card { border:1px solid var(--border); background: var(--panel); border-radius: 12px; padding: 12px; }
+.mode-card h3 { font-size: 13px; margin-bottom: 6px; color: #dcfce7; }
+.mode-card p { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.mode-card code { background: #18181b; border:1px solid var(--border); padding: 2px 5px; border-radius: 6px; font-size: 11px; }
+.tutorial-panel { margin-top: 14px; border:1px solid var(--border); background: rgba(17,18,23,0.9); border-radius: 12px; padding: 12px; }
+.tutorial-head { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; margin-bottom: 10px; }
+.tutorial-head h3 { font-size: 13px; color: #bbf7d0; margin-bottom: 3px; }
+.tutorial-head p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
+.tutorial-mini { color: var(--subtle); font-size: 11px; white-space: nowrap; }
+.tutorial-steps { display:grid; gap: 8px; }
+.tutorial-step { border:1px solid var(--border); background: #0f1117; border-radius: 10px; padding: 10px; transition: border-color .15s, background .15s; }
+.tutorial-step.active { border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.06); }
+.tutorial-step-top { display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 6px; }
+.tutorial-step-title { font-size: 12px; font-weight: 700; color: #e4e4e7; }
+.tutorial-step-meta { font-size: 10px; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; }
+.tutorial-step p { font-size: 12px; color: var(--muted); line-height: 1.45; margin-bottom: 8px; }
+.tutorial-prompt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #cbd5e1; background: #090b10; border:1px solid var(--border); border-radius: 8px; padding: 8px 9px; margin-bottom: 8px; }
+.tutorial-look { font-size: 11px; color: #a1a1aa; margin-bottom: 8px; line-height: 1.4; }
+.tutorial-actions { display:flex; flex-wrap:wrap; gap: 6px; }
+.tutorial-btn { border:1px solid var(--border); background: #131722; color: #d4d4d8; border-radius: 999px; padding: 6px 10px; font-size: 11px; cursor: pointer; }
+.tutorial-btn:hover { border-color:#3f3f46; color:#fff; }
+.tutorial-btn.primary { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.35); color: #bfdbfe; }
+.tutorial-btn.primary:hover { background: rgba(59,130,246,0.22); }
+.input-area { border-top: 1px solid var(--border); padding: 12px 16px 16px; background: rgba(8,8,10,0.92); flex-shrink: 0; }
+.input-wrap { display:flex; gap:10px; align-items:flex-end; max-width: 980px; margin:0 auto; }
+textarea { flex:1; background: var(--panel); color: var(--text); border:1px solid var(--border); border-radius: 12px; padding: 12px 14px; font-size: 14px; resize:none; outline:none; min-height:44px; max-height:120px; line-height:1.5; }
+textarea:focus { border-color: rgba(59,130,246,0.5); }
+textarea::placeholder { color: var(--subtle); }
+.send-btn { width:44px; height:44px; border:none; border-radius: 10px; background: var(--accent); color:#04130a; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:700; }
+.send-btn:hover:not(:disabled) { background: var(--accent2); }
+.send-btn:disabled { cursor:not-allowed; opacity:.5; }
+.bottom-note { text-align:center; color: var(--subtle); font-size: 11px; padding-top: 8px; }
+.meta-chip { display:inline-flex; align-items:center; gap:6px; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:3px 7px; border-radius:999px; border:1px solid var(--border); background:#0f1117; color:#cbd5e1; margin-bottom:8px; }
+.acl-toggle { display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer; font-size:11px; color: var(--muted); user-select:none; }
+.acl-toggle:hover { color: var(--text); }
+.acl-toggle .arrow { transition: transform .2s; display:inline-block; }
+.acl-toggle .arrow.open { transform: rotate(90deg); }
+.acl-code { display:none; margin-top:8px; background:#0a0c12; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; line-height:1.45; color:#cbd5e1; white-space:pre-wrap; word-break:break-word; max-height:280px; overflow:auto; }
+.acl-code.visible { display:block; }
+.receipt-summary { margin-top:10px; border:1px solid var(--border); background:#0c0f15; border-radius:8px; padding:10px 12px; }
+.receipt-status { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; margin-bottom:6px; }
+.receipt-status.success { background:#052e16; color:#86efac; }
+.receipt-status.failed { background:#3a0f14; color:#fecaca; }
+.receipt-status.unknown { background:#1f2937; color:#cbd5e1; }
+.receipt-row { display:flex; align-items:center; gap:8px; font-size:12px; padding:3px 0; }
+.receipt-row .name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color:#d4d4d8; }
+.receipt-row .tool { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color:#93c5fd; font-size:11px; }
+.receipt-row .dur { margin-left:auto; color: var(--subtle); font-size:11px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22"><rect width="32" height="32" rx="6" fill="#22c55e"/><rect x="4" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="4" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="4" y="24.5" width="7" height="2.5" rx="1" fill="white"/><rect x="25.5" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="21" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="21" y="24.5" width="7" height="2.5" rx="1" fill="white"/><circle cx="16" cy="16" r="3" fill="white" opacity="0.9"/></svg>
+    ACL <span class="logo-sub">Agentic Flow Lab</span>
+  </span>
+  <a class="nav-link" href="/">Home</a>
+  <a class="nav-link" href="/playground">Playground</a>
+  <a class="nav-link" href="/agent">Monarch Demo</a>
+  <span class="spacer"></span>
+  <div class="health"><span class="dot" id="h-dot"></span><span id="h-txt">--</span></div>
+</nav>
+
+<div class="main">
+  <div class="modebar-wrap">
+    <div class="modebar">
+      <span class="mode-label">Modes</span>
+      <div class="mode-tabs" id="mode-tabs"></div>
+      <div class="mode-caption" id="mode-caption"></div>
+    </div>
+  </div>
+
+  <div class="chat-shell">
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <h2 id="welcome-title">Agentic Flow Demo</h2>
+        <p id="welcome-desc">Try natural-language requests. ACL will generate a contract, run it against sandbox tools, and show the receipt.</p>
+        <div class="welcome-grid">
+          <div>
+            <div class="suggestions" id="suggestions"></div>
+          </div>
+          <div class="mode-card">
+            <h3 id="mode-card-title">What this mode demonstrates</h3>
+            <p id="mode-card-desc"></p>
+          </div>
+        </div>
+        <div class="tutorial-panel" id="tutorial-panel">
+          <div class="tutorial-head">
+            <div>
+              <h3>Guided Tutorial: Make An App Agent-Ready</h3>
+              <p>Three short flows that show the ACL pattern: natural-language request → controlled action/preview → receipt + full JSON proof.</p>
+            </div>
+            <div class="tutorial-mini">Start here</div>
+          </div>
+          <div class="tutorial-steps" id="tutorial-steps"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea id="input" rows="1" placeholder="Type a request..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="send()" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <div class="bottom-note">Sandbox demo modes on top of ACL. /agent (Monarch) remains separate.</div>
+  </div>
+</div>
+
+<script>
+const MODES = {
+  splitwise: {
+    label: 'Splitwise',
+    caption: 'Consumer-style chat to split bills, with clarifying questions before write actions.',
+    placeholder: 'e.g. Dinner with Sarah - 20 USD each',
+    welcomeTitle: 'Splitwise-style AI Assistant (Sandbox)',
+    welcomeDesc: 'Show how ACL handles messy natural language, missing fields, and safe write actions for shared expenses.',
+    card: 'Good for demos because it is relatable and shows the difference between calling an API and asking one missing question first.',
+    suggestions: [
+      'Dinner with Sarah - 20 USD each',
+      'I paid $48 for Uber with Ali, split equally',
+      'Show my balances with friends'
+    ]
+  },
+  support_refund: {
+    label: 'Support Refund',
+    caption: 'Internal support/ops assistant: eligibility checks, approval-aware refund flow, and customer comms.',
+    placeholder: 'e.g. Refund order #10482 and email the customer (approved)',
+    welcomeTitle: 'Support Refund Assistant (Sandbox)',
+    welcomeDesc: 'A high-trust flow where ACL can prove what the AI checked before taking a write action.',
+    card: 'This is where ACL shines: multi-step, cross-tool actions with MUST checks and a receipt for the support team.',
+    suggestions: [
+      'Refund order #10482 and email the customer (approved)',
+      'Check if order #10483 is eligible for a refund',
+      'Prepare a refund for order #10482 but do not execute yet'
+    ]
+  },
+  calendar: {
+    label: 'Calendar',
+    caption: 'Everyday multi-step coordination: find event, move it, notify attendees.',
+    placeholder: 'e.g. Move tomorrow\'s 3pm with Sarah to next week and send a note',
+    welcomeTitle: 'Calendar Move + Notify (Sandbox)',
+    welcomeDesc: 'A simple, visual demo for how one natural-language request can safely coordinate multiple actions.',
+    card: 'People understand this instantly. It demonstrates orchestration, not just a chat response.',
+    suggestions: [
+      "Move tomorrow's 3pm with Sarah to next week and send a note",
+      'Find my Sarah event and move it to Friday 4pm',
+      'Notify attendees that the coffee meeting was moved'
+    ]
+  },
+  zapier_calendar: {
+    label: 'Zapier Calendar',
+    caption: 'Zapier bridge MVP: use ACL for preview/confirm/execute with receipts on top of Zapier app connectivity.',
+    placeholder: 'e.g. Schedule lunch with Ali tomorrow at 1pm at home',
+    welcomeTitle: 'Zapier Calendar (ACL Bridge MVP)',
+    welcomeDesc: 'This mode shows how ACL can sit on top of Zapier: AI understands the request, ACL previews/guards the action, and the receipt shows exactly what would be sent.',
+    card: 'Use this to demonstrate the thesis: Zapier gives app breadth, ACL adds safety, confirmation, and auditability for AI actions.',
+    suggestions: [
+      'Schedule lunch with Ali tomorrow at 1pm at home',
+      'Schedule dentist appointment on Friday at 4pm (approved)',
+      'Create a calendar event for team sync next Tuesday at 10am (confirm)'
+    ]
+  },
+  monarch: {
+    label: 'Monarch',
+    caption: 'Finance mode using your existing Monarch-oriented prompt path, but inside the new multi-mode demo shell.',
+    placeholder: 'e.g. How much did I spend on food this month?',
+    welcomeTitle: 'Monarch-style Finance Assistant',
+    welcomeDesc: 'Same idea as /agent, but selectable here so you can show multiple use cases in one place.',
+    card: 'Useful for side-by-side demos: one runtime, different app adapters.',
+    suggestions: [
+      'How much did I spend on food?',
+      'What are my subscriptions costing me?',
+      'Log $50 dinner at Olive Garden'
+    ]
+  }
+};
+
+let mode = 'splitwise';
+let busy = false;
+let msgCounter = 0;
+let tutorialStepId = 't1';
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send-btn');
+const welcomeEl = document.getElementById('welcome');
+
+const TUTORIAL_STEPS = [
+  {
+    id: 't1',
+    title: 'Read from an app safely',
+    mode: 'calendar',
+    prompt: 'do i have any meetings?',
+    why: 'Start with a simple read. ACL still generates a contract and emits a receipt so the answer is transparent, not magic.',
+    lookFor: 'Open the generated ACL, then inspect the receipt summary and the full receipt JSON toggle.'
+  },
+  {
+    id: 't2',
+    title: 'Handle ambiguity before a write',
+    mode: 'splitwise',
+    prompt: 'Dinner with Sarah - 20 USD each',
+    why: 'This shows why APIs alone are not enough: AI should clarify missing facts before writing data.',
+    lookFor: 'See whether the flow asks a follow-up before creating the expense, then inspect the receipt.'
+  },
+  {
+    id: 't3',
+    title: 'Preview-first for real app actions',
+    mode: 'zapier_calendar',
+    prompt: 'Schedule lunch with Ali tomorrow at 1pm at home',
+    why: 'Zapier gives app breadth. ACL adds preview/confirm behavior and a receipt of what would be sent.',
+    lookFor: 'Open full receipt JSON and inspect the zapier.invoke preview payload.'
+  }
+];
+
+function esc(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtMs(ms) { if (!ms) return '0ms'; return ms >= 1000 ? (ms/1000).toFixed(1) + 's' : ms + 'ms'; }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+
+function renderModeTabs() {
+  const tabs = document.getElementById('mode-tabs');
+  tabs.innerHTML = '';
+  for (const [id, cfg] of Object.entries(MODES)) {
+    const btn = document.createElement('button');
+    btn.className = 'mode-tab' + (id === mode ? ' active' : '');
+    btn.textContent = cfg.label;
+    btn.onclick = () => setMode(id);
+    tabs.appendChild(btn);
+  }
+}
+
+function renderTutorial() {
+  const root = document.getElementById('tutorial-steps');
+  if (!root) return;
+  root.innerHTML = '';
+  for (const step of TUTORIAL_STEPS) {
+    const modeLabel = (MODES[step.mode] && MODES[step.mode].label) || step.mode;
+    const card = document.createElement('div');
+    card.className = 'tutorial-step' + (step.id === tutorialStepId ? ' active' : '');
+    card.innerHTML = `
+      <div class="tutorial-step-top">
+        <div class="tutorial-step-title">${esc(step.title)}</div>
+        <div class="tutorial-step-meta">${esc(modeLabel)}</div>
+      </div>
+      <p>${esc(step.why)}</p>
+      <div class="tutorial-prompt">${esc(step.prompt)}</div>
+      <div class="tutorial-look"><strong>What to look for:</strong> ${esc(step.lookFor)}</div>
+      <div class="tutorial-actions">
+        <button class="tutorial-btn" data-step="${esc(step.id)}" data-run="0">Load Prompt</button>
+        <button class="tutorial-btn primary" data-step="${esc(step.id)}" data-run="1">Run Step</button>
+      </div>
+    `;
+    root.appendChild(card);
+  }
+  root.querySelectorAll('button[data-step]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-step');
+      const run = btn.getAttribute('data-run') === '1';
+      applyTutorialStep(id, run);
+    };
+  });
+}
+
+function renderWelcome() {
+  const cfg = MODES[mode];
+  document.getElementById('mode-caption').textContent = cfg.caption;
+  document.getElementById('welcome-title').textContent = cfg.welcomeTitle;
+  document.getElementById('welcome-desc').textContent = cfg.welcomeDesc;
+  document.getElementById('mode-card-title').textContent = cfg.label + ' demo goal';
+  document.getElementById('mode-card-desc').innerHTML = esc(cfg.card) + ' Try asking one of the prompts, then open the generated ACL + receipt.';
+  inputEl.placeholder = cfg.placeholder;
+
+  const sug = document.getElementById('suggestions');
+  sug.innerHTML = '';
+  for (const text of cfg.suggestions) {
+    const el = document.createElement('button');
+    el.className = 'suggestion';
+    el.textContent = text;
+    el.onclick = () => { inputEl.value = text; send(); };
+    sug.appendChild(el);
+  }
+  renderTutorial();
+}
+
+function setMode(next) {
+  if (busy) return;
+  mode = next;
+  renderModeTabs();
+  renderWelcome();
+  inputEl.focus();
+}
+
+function applyTutorialStep(stepId, autoRun) {
+  const step = TUTORIAL_STEPS.find(s => s.id === stepId);
+  if (!step) return;
+  tutorialStepId = step.id;
+  if (mode !== step.mode) {
+    setMode(step.mode);
+  } else {
+    renderTutorial();
+  }
+  inputEl.value = step.prompt;
+  autoResize(inputEl);
+  inputEl.focus();
+  if (autoRun) send();
+}
+
+function addMessage(type, content) {
+  if (welcomeEl) welcomeEl.style.display = 'none';
+  const div = document.createElement('div');
+  div.className = 'msg msg-' + type;
+  div.innerHTML = '<div class="msg-bubble">' + content + '</div>';
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function addThinking() {
+  if (welcomeEl) welcomeEl.style.display = 'none';
+  const cfg = MODES[mode];
+  const div = document.createElement('div');
+  div.className = 'thinking';
+  div.id = 'thinking';
+  div.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div><span class="thinking-text">Generating ACL for ' + esc(cfg.label) + ' and executing...</span>';
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function removeThinking() { const el = document.getElementById('thinking'); if (el) el.remove(); }
+
+function buildAgentResponse(data) {
+  let html = '';
+  const modeLabel = (MODES[data.mode] || MODES[mode] || {}).label || 'Mode';
+  html += '<div class="meta-chip">' + esc(modeLabel) + '</div>';
+  html += '<div class="msg-bubble">' + esc(data.message || (data.error ? 'Something went wrong.' : 'Done.')) + '</div>';
+
+  if (data.generated_acl) {
+    const id = 'acl-' + (++msgCounter);
+    html += `<div class="acl-toggle" onclick="toggleACL('${id}')"><span class="arrow" id="${id}-arrow">&#9654;</span><span>View generated ACL contract</span></div>`;
+    html += `<div class="acl-code" id="${id}">${esc(data.generated_acl)}</div>`;
+  }
+
+  if (data.receipt && data.receipt.agents) {
+    const steps = data.receipt.agents.flatMap(a => a.steps || []);
+    if (steps.length > 0) {
+      const status = (data.status || data.receipt.status || 'unknown').toLowerCase();
+      html += '<div class="receipt-summary">';
+      html += `<span class="receipt-status ${esc(status)}">${esc(status.toUpperCase())}</span>`;
+      for (const st of steps) {
+        const icon = st.error ? '<span style="color:#fca5a5">&#10007;</span>' : '<span style="color:#86efac">&#10003;</span>';
+        html += `<div class="receipt-row"><span>${icon}</span><span class="name">${esc(st.name)}</span><span class="tool">${esc(st.target || '')}</span><span class="dur">${fmtMs(st.duration_ms)}</span></div>`;
+      }
+      html += '</div>';
+    }
+  }
+
+  if (data.receipt) {
+    const rid = 'receipt-' + (++msgCounter);
+    let pretty = '';
+    try {
+      pretty = JSON.stringify(data.receipt, null, 2);
+    } catch (_) {
+      pretty = String(data.receipt);
+    }
+    html += `<div class="acl-toggle" onclick="toggleACL('${rid}')"><span class="arrow" id="${rid}-arrow">&#9654;</span><span>View full receipt JSON</span></div>`;
+    html += `<div class="acl-code" id="${rid}">${esc(pretty)}</div>`;
+  }
+  return html;
+}
+
+function toggleACL(id) {
+  const code = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  if (!code || !arrow) return;
+  code.classList.toggle('visible');
+  arrow.classList.toggle('open');
+}
+
+async function send() {
+  if (busy) return;
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  busy = true;
+  sendBtn.disabled = true;
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  addMessage('user', esc(text));
+  addThinking();
+
+  try {
+    const r = await fetch('/agenticflow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request: text, mode })
+    });
+    const data = await r.json();
+    removeThinking();
+    if (data.error && !data.receipt) {
+      addMessage('error', esc(data.error));
+    } else {
+      const div = document.createElement('div');
+      div.className = 'msg msg-agent';
+      div.innerHTML = buildAgentResponse(data);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  } catch (e) {
+    removeThinking();
+    addMessage('error', 'Request failed: ' + esc(e.message));
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+async function checkHealth() {
+  try {
+    const r = await fetch('/health');
+    if (!r.ok) throw new Error('bad status');
+    await r.json();
+    document.getElementById('h-dot').classList.add('on');
+    document.getElementById('h-txt').textContent = 'connected';
+  } catch (_) {
+    document.getElementById('h-dot').classList.remove('on');
+    document.getElementById('h-txt').textContent = 'offline';
+  }
+}
+
+renderModeTabs();
+renderWelcome();
+checkHealth();
+setInterval(checkHealth, 30000);
+inputEl.focus();
+</script>
+</body>
+</html>

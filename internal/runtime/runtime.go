@@ -10,6 +10,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -369,6 +370,29 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 			// ── Sequential step ───────────────────────────────────────────────
 			step := runSet[0]
 			start := receipt.Now()
+
+			// Control-flow steps (IF/FOREACH) run sub-steps and update env directly.
+			if step.Kind == ast.SKIf || step.Kind == ast.SKForeach {
+				stepErr := r.runControlStep(ctx, step, env)
+				strace := receipt.StepTrace{
+					Name:      step.Name,
+					Kind:      step.Kind.String(),
+					StartedAt: start,
+					EndedAt:   receipt.Now(),
+					DurationMS: receipt.DurationMS(start),
+				}
+				if stepErr != nil {
+					strace.Error = stepErr.Error()
+					atrace.Steps = append(atrace.Steps, strace)
+					atrace.Status = "failed"
+					atrace.Error = stepErr.Error()
+					return atrace, stepErr
+				}
+				atrace.Steps = append(atrace.Steps, strace)
+				i++
+				continue
+			}
+
 			val, hit, retriesUsed, checkPassed, stepErr := r.execStep(ctx, step, env)
 
 			strace := r.buildStepTrace(step, env, start, val, hit, retriesUsed, checkPassed, stepErr)
@@ -503,10 +527,15 @@ func (r *runner) buildStepTrace(s *ast.StepDef, env evidence.Env, start string, 
 		RetriesUsed: retriesUsed,
 		CheckPassed: checkPassed,
 	}
-	if s.Kind == ast.SKTool {
+	switch s.Kind {
+	case ast.SKTool:
 		st.Kind = "tool"
-	} else {
+	case ast.SKAgent:
 		st.Kind = "agent"
+	case ast.SKIf:
+		st.Kind = "if"
+	case ast.SKForeach:
+		st.Kind = "foreach"
 	}
 	st.Args = flattenArgs(s.Args, env)
 	if s.Check != nil {
@@ -523,6 +552,7 @@ func (r *runner) buildStepTrace(s *ast.StepDef, env evidence.Env, start string, 
 	} else {
 		st.OutputHash = receipt.HashValue(val)
 		st.OutputPreview = receipt.PreviewValue(val, 200)
+		st.Result = val
 	}
 	return st
 }
@@ -656,6 +686,98 @@ func (r *runner) callAgent(ctx context.Context, name string, inputs map[string]a
 	return atrace.Result, nil
 }
 
+// ── Control-flow step execution ───────────────────────────────────────────────
+
+// runControlStep executes an IF or FOREACH step, updating env in place.
+func (r *runner) runControlStep(ctx context.Context, s *ast.StepDef, env evidence.Env) error {
+	switch s.Kind {
+	case ast.SKIf:
+		return r.runIfStep(ctx, s, env)
+	case ast.SKForeach:
+		return r.runForeachStep(ctx, s, env)
+	}
+	return nil
+}
+
+func (r *runner) runIfStep(ctx context.Context, s *ast.StepDef, env evidence.Env) error {
+	val, err := evidence.Evaluate(s.IfCond, env)
+	if err != nil {
+		return fmt.Errorf("IF condition: %w", err)
+	}
+	var branch []*ast.StepDef
+	if isTruthy(val) {
+		branch = s.IfThen
+	} else if s.IfElse != nil {
+		branch = s.IfElse
+	}
+	return r.runSubSteps(ctx, branch, env)
+}
+
+func (r *runner) runForeachStep(ctx context.Context, s *ast.StepDef, env evidence.Env) error {
+	listVal, err := evidence.Evaluate(s.ForeachOver, env)
+	if err != nil {
+		return fmt.Errorf("FOREACH expression: %w", err)
+	}
+	items, ok := toSlice(listVal)
+	if !ok {
+		return fmt.Errorf("FOREACH: expression must evaluate to a list, got %T", listVal)
+	}
+	for _, item := range items {
+		env[s.ForeachVar] = item
+		if err := r.runSubSteps(ctx, s.ForeachBody, env); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// runSubSteps executes a slice of steps (inside IF/FOREACH bodies).
+// Results are written into env so subsequent sub-steps can reference them.
+func (r *runner) runSubSteps(ctx context.Context, steps []*ast.StepDef, env evidence.Env) error {
+	for _, step := range steps {
+		if step.Kind == ast.SKIf || step.Kind == ast.SKForeach {
+			if err := r.runControlStep(ctx, step, env); err != nil {
+				return err
+			}
+		} else {
+			val, _, _, _, err := r.execStep(ctx, step, env)
+			if err != nil {
+				return err
+			}
+			if step.Name != "" {
+				env[step.Name] = val
+			}
+		}
+	}
+	return nil
+}
+
+func isTruthy(v any) bool {
+	if v == nil {
+		return false
+	}
+	switch x := v.(type) {
+	case bool:
+		return x
+	case int64:
+		return x != 0
+	case float64:
+		return x != 0
+	case string:
+		return x != ""
+	case []any:
+		return len(x) > 0
+	}
+	return true
+}
+
+func toSlice(v any) ([]any, bool) {
+	if s, ok := v.([]any); ok {
+		return s, true
+	}
+	return nil, false
+}
+
 // ── Template expansion ────────────────────────────────────────────────────────
 
 // expand resolves TEMPLATE, MAKE, and GROUP statements into concrete AgentDefs.
@@ -785,15 +907,27 @@ func cloneAndSubstitute(body *ast.AgentDef, bindings map[string]any) *ast.AgentD
 
 func cloneStep(s *ast.StepDef, bindings map[string]any) *ast.StepDef {
 	step := &ast.StepDef{
-		Name:   s.Name,
-		Kind:   s.Kind,
-		Target: s.Target,
-		Line:   s.Line,
+		Name:          s.Name,
+		Kind:          s.Kind,
+		Target:        s.Target,
+		Line:          s.Line,
+		ParallelGroup: s.ParallelGroup,
+		ForeachVar:    s.ForeachVar,
 	}
 	step.Args = make(map[string]*ast.Arg, len(s.Args))
 	for k, arg := range s.Args {
 		if arg.IsLiteral {
 			step.Args[k] = &ast.Arg{Literal: arg.Literal, IsLiteral: true}
+		} else if len(arg.Parts) > 0 {
+			parts := make([]ast.ArgPart, len(arg.Parts))
+			copy(parts, arg.Parts)
+			for i, p := range parts {
+				if p.Expr != nil {
+					e := subExpr(*p.Expr, bindings)
+					parts[i].Expr = &e
+				}
+			}
+			step.Args[k] = &ast.Arg{Parts: parts}
 		} else if arg.ExprRef != nil {
 			e := subExpr(*arg.ExprRef, bindings)
 			step.Args[k] = &ast.Arg{ExprRef: &e}
@@ -807,7 +941,31 @@ func cloneStep(s *ast.StepDef, bindings map[string]any) *ast.StepDef {
 		of := *s.OnFail
 		step.OnFail = &of
 	}
+	// IF block fields
+	if s.IfCond != nil {
+		e := subExpr(*s.IfCond, bindings)
+		step.IfCond = &e
+	}
+	step.IfThen = cloneSteps(s.IfThen, bindings)
+	step.IfElse = cloneSteps(s.IfElse, bindings)
+	// FOREACH fields
+	if s.ForeachOver != nil {
+		e := subExpr(*s.ForeachOver, bindings)
+		step.ForeachOver = &e
+	}
+	step.ForeachBody = cloneSteps(s.ForeachBody, bindings)
 	return step
+}
+
+func cloneSteps(steps []*ast.StepDef, bindings map[string]any) []*ast.StepDef {
+	if steps == nil {
+		return nil
+	}
+	out := make([]*ast.StepDef, len(steps))
+	for i, s := range steps {
+		out[i] = cloneStep(s, bindings)
+	}
+	return out
 }
 
 // subExpr recursively replaces IdentExpr references to template params.
@@ -883,6 +1041,21 @@ func resolveArgs(args map[string]*ast.Arg, env evidence.Env) (map[string]any, er
 func resolveArg(arg *ast.Arg, env evidence.Env) (any, error) {
 	if arg.IsLiteral {
 		return arg.Literal, nil
+	}
+	if len(arg.Parts) > 0 {
+		var sb strings.Builder
+		for _, part := range arg.Parts {
+			if part.Expr != nil {
+				v, err := evidence.Evaluate(part.Expr, env)
+				if err != nil {
+					return nil, fmt.Errorf("interpolation: %w", err)
+				}
+				sb.WriteString(fmt.Sprintf("%v", v))
+			} else {
+				sb.WriteString(part.Text)
+			}
+		}
+		return sb.String(), nil
 	}
 	if arg.ExprRef != nil {
 		return evidence.Evaluate(arg.ExprRef, env)

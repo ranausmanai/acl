@@ -11,7 +11,7 @@
 
 **Agent Contract Language**
 
-*A minimal programming language for building reliable AI agent workflows*
+*Safe AI actions for existing apps — with receipts*
 
 [![CI](https://github.com/ranausmanai/acl/actions/workflows/ci.yml/badge.svg)](https://github.com/ranausmanai/acl/actions)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
@@ -23,7 +23,30 @@
 
 ---
 
-ACL is a **line-based programming language** that lets you define AI agent pipelines with a single, auditable contract. Every step must prove it worked — no hidden side effects, no silent failures, no hallucinations sneaking through.
+ACL is an open-source **language + runtime for safe AI actions**.
+
+It helps you make existing app capabilities (APIs, MCP tools, Zapier actions, CLIs) usable by AI agents with:
+
+- explicit allowed actions
+- step-by-step checks
+- retries/fallbacks
+- preview/confirm patterns for risky writes
+- receipts for every run
+
+In short: **APIs give access. ACL gives control.**
+
+You can treat ACL as the contract layer between:
+
+- app capabilities (`refund_order`, `create_transaction`, `calendar.create_event`, ...)
+- an AI interface (chat/voice/assistant)
+- a production safety model (checks + receipts)
+
+Try the live demos and guided tutorial:
+
+- `https://acl.fyi/agenticflow` — multi-mode demo lab (Splitwise, Calendar, Support, Zapier, Monarch)
+- `https://acl.fyi/playground` — author and run ACL directly
+
+ACL is still a **line-based language** at its core, so contracts remain readable and auditable. Every step must prove it worked — no hidden side effects, no silent failures, no hallucinations sneaking through.
 
 ```acl
 INTENT "Extract pricing and send a brief to the CTO"
@@ -124,6 +147,18 @@ acl history show 3
 # Expose all agents as an HTTP API
 acl serve main.acl --port 8080
 ```
+
+### Make an app agent-ready (simple version)
+
+1. Expose app capabilities as tools (API wrappers, MCP, Zapier, CLI).
+2. Define an ACL flow for how an agent may use them.
+3. Preview/confirm risky writes.
+4. Keep the receipt.
+
+See:
+
+- `docs/agent-ready-apps-roadmap.md` — architecture and roadmap
+- `docs/zapier-bridge.md` — ACL x Zapier bridge MVP
 
 ---
 

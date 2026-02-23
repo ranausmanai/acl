@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACL Agent — Monarch Money</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Nav ── */
+nav { background: #020617; padding: 0 20px; height: 52px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+.logo { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
+.logo svg { flex-shrink: 0; }
+.logo-sub { font-size: 12px; color: #64748b; font-weight: 400; letter-spacing: 0; }
+.nav-sep { width: 1px; height: 24px; background: #1e293b; }
+.nav-link { font-size: 12px; color: #64748b; text-decoration: none; transition: color 0.15s; }
+.nav-link:hover { color: #94a3b8; }
+.spacer { flex: 1; }
+.health { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #475569; }
+.health .dot { width: 6px; height: 6px; border-radius: 50%; background: #475569; }
+.health .dot.on { background: #22c55e; }
+
+/* ── Chat ── */
+.chat-container { flex: 1; display: flex; flex-direction: column; max-width: 800px; width: 100%; margin: 0 auto; overflow: hidden; }
+.messages { flex: 1; overflow-y: auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 16px; }
+.messages::-webkit-scrollbar { width: 6px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+
+/* Message bubbles */
+.msg { max-width: 85%; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.msg-user { align-self: flex-end; }
+.msg-agent { align-self: flex-start; }
+.msg-bubble { padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6; word-wrap: break-word; }
+.msg-user .msg-bubble { background: #3b82f6; color: white; border-bottom-right-radius: 4px; }
+.msg-agent .msg-bubble { background: #1e293b; color: #e2e8f0; border-bottom-left-radius: 4px; }
+
+/* ACL code block */
+.acl-toggle { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; font-size: 11px; color: #64748b; transition: color 0.15s; user-select: none; }
+.acl-toggle:hover { color: #94a3b8; }
+.acl-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+.acl-toggle .arrow.open { transform: rotate(90deg); }
+.acl-code { display: none; margin-top: 8px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.5; color: #94a3b8; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+.acl-code.visible { display: block; }
+
+/* Receipt summary */
+.receipt-summary { margin-top: 10px; padding: 10px 14px; background: #0f172a; border-radius: 8px; border: 1px solid #1e293b; }
+.receipt-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.receipt-row .icon { font-size: 13px; }
+.receipt-row .name { color: #94a3b8; font-family: monospace; }
+.receipt-row .tool { color: #3b82f6; font-family: monospace; font-size: 11px; }
+.receipt-row .dur { margin-left: auto; color: #475569; font-size: 11px; }
+.receipt-status { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-bottom: 6px; }
+.receipt-status.success { background: #052e16; color: #22c55e; }
+.receipt-status.failed { background: #450a0a; color: #ef4444; }
+
+/* Thinking indicator */
+.thinking { align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #1e293b; border-radius: 16px; border-bottom-left-radius: 4px; }
+.thinking-dots { display: flex; gap: 4px; }
+.thinking-dots span { width: 6px; height: 6px; background: #475569; border-radius: 50%; animation: bounce 1.4s infinite; }
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }
+.thinking-text { font-size: 12px; color: #475569; }
+
+/* Welcome */
+.welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 40px 20px; text-align: center; }
+.welcome-icon { width: 56px; height: 56px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 16px; display: flex; align-items: center; justify-content: center; }
+.welcome h2 { font-size: 20px; font-weight: 600; color: #f1f5f9; }
+.welcome p { font-size: 14px; color: #64748b; max-width: 400px; line-height: 1.6; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+.suggestion { background: #1e293b; border: 1px solid #334155; color: #94a3b8; padding: 8px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.suggestion:hover { background: #334155; color: #e2e8f0; border-color: #475569; }
+
+/* ── Input ── */
+.input-area { padding: 16px 20px 24px; background: #020617; border-top: 1px solid #1e293b; flex-shrink: 0; }
+.input-wrap { max-width: 800px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+.input-wrap textarea { flex: 1; background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 12px; padding: 12px 16px; font-size: 14px; font-family: inherit; resize: none; outline: none; min-height: 44px; max-height: 120px; line-height: 1.5; transition: border-color 0.15s; }
+.input-wrap textarea:focus { border-color: #3b82f6; }
+.input-wrap textarea::placeholder { color: #475569; }
+.send-btn { background: #3b82f6; color: white; border: none; border-radius: 10px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+.send-btn:hover:not(:disabled) { background: #2563eb; }
+.send-btn:disabled { background: #334155; color: #475569; cursor: not-allowed; }
+.send-btn svg { width: 18px; height: 18px; }
+
+/* ── Bottom ── */
+.bottom-note { text-align: center; padding: 0 20px 12px; font-size: 11px; color: #334155; background: #020617; }
+
+/* Error */
+.msg-error .msg-bubble { background: #450a0a; border: 1px solid #7f1d1d; color: #fca5a5; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22"><rect width="32" height="32" rx="6" fill="#4f46e5"/><rect x="4" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="4" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="4" y="24.5" width="7" height="2.5" rx="1" fill="white"/><rect x="25.5" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="21" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="21" y="24.5" width="7" height="2.5" rx="1" fill="white"/><circle cx="16" cy="16" r="3" fill="white" opacity="0.9"/></svg>
+    ACL <span class="logo-sub">Agent</span>
+  </span>
+  <span class="nav-sep"></span>
+  <a href="/playground" class="nav-link">Playground</a>
+  <span class="spacer"></span>
+  <div class="health"><span class="dot" id="h-dot"></span><span id="h-txt">--</span></div>
+</nav>
+
+<div class="chat-container">
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="28" height="28"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <h2>Monarch Money AI Agent</h2>
+      <p>Ask anything about your finances. ACL generates a contract, executes it against Monarch's tools, and gives you the answer with a full audit trail.</p>
+      <div class="suggestions">
+        <div class="suggestion" onclick="useSuggestion(this)">How much did I spend on food?</div>
+        <div class="suggestion" onclick="useSuggestion(this)">Am I over budget on anything?</div>
+        <div class="suggestion" onclick="useSuggestion(this)">What are my subscriptions costing me?</div>
+        <div class="suggestion" onclick="useSuggestion(this)">Show my net worth trend</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="input-area">
+  <div class="input-wrap">
+    <textarea id="input" rows="1" placeholder="Ask about your finances..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="send-btn" onclick="send()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
+<div class="bottom-note">Powered by ACL — Agent Contract Language. Every response has a verifiable execution receipt.</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send-btn');
+const welcomeEl = document.getElementById('welcome');
+let busy = false;
+let msgCounter = 0;
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtMs(ms) {
+  if (!ms) return '0ms';
+  return ms >= 1000 ? (ms/1000).toFixed(1) + 's' : ms + 'ms';
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+}
+
+function useSuggestion(el) {
+  inputEl.value = el.textContent;
+  send();
+}
+
+function addMessage(type, content) {
+  if (welcomeEl) welcomeEl.style.display = 'none';
+  const div = document.createElement('div');
+  div.className = 'msg msg-' + type;
+  div.innerHTML = '<div class="msg-bubble">' + content + '</div>';
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function addThinking() {
+  if (welcomeEl) welcomeEl.style.display = 'none';
+  const div = document.createElement('div');
+  div.className = 'thinking';
+  div.id = 'thinking';
+  div.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div><span class="thinking-text">Generating ACL contract & executing...</span>';
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking');
+  if (el) el.remove();
+}
+
+function buildAgentResponse(data) {
+  let html = '';
+
+  // Main message
+  const message = data.message || (data.error ? 'Something went wrong.' : 'Done.');
+  html += '<div class="msg-bubble">' + esc(message) + '</div>';
+
+  // ACL code toggle
+  if (data.generated_acl) {
+    const id = 'acl-' + (++msgCounter);
+    html += `<div class="acl-toggle" onclick="toggleACL('${id}')">
+      <span class="arrow" id="${id}-arrow">&#9654;</span>
+      <span>View generated ACL contract</span>
+    </div>
+    <div class="acl-code" id="${id}">${esc(data.generated_acl)}</div>`;
+  }
+
+  // Receipt summary
+  if (data.receipt && data.receipt.agents) {
+    const steps = data.receipt.agents.flatMap(a => a.steps || []);
+    if (steps.length > 0) {
+      const status = data.status || data.receipt.status || 'unknown';
+      html += '<div class="receipt-summary">';
+      html += `<span class="receipt-status ${status}">${status.toUpperCase()}</span>`;
+      for (const st of steps) {
+        const icon = st.error ? '<span style="color:#ef4444">&#10007;</span>' : '<span style="color:#22c55e">&#10003;</span>';
+        html += `<div class="receipt-row">
+          <span class="icon">${icon}</span>
+          <span class="name">${esc(st.name)}</span>
+          <span class="tool">${esc(st.target || '')}</span>
+          <span class="dur">${fmtMs(st.duration_ms)}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+  }
+
+  return html;
+}
+
+function toggleACL(id) {
+  const code = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  if (code.classList.contains('visible')) {
+    code.classList.remove('visible');
+    arrow.classList.remove('open');
+  } else {
+    code.classList.add('visible');
+    arrow.classList.add('open');
+  }
+}
+
+async function send() {
+  if (busy) return;
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  busy = true;
+  sendBtn.disabled = true;
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+
+  addMessage('user', esc(text));
+  addThinking();
+
+  try {
+    const r = await fetch('/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request: text }),
+    });
+    const data = await r.json();
+    removeThinking();
+
+    if (data.error && !data.receipt) {
+      addMessage('error', esc(data.error));
+    } else {
+      const div = document.createElement('div');
+      div.className = 'msg msg-agent';
+      div.innerHTML = buildAgentResponse(data);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  } catch (e) {
+    removeThinking();
+    addMessage('error', 'Request failed: ' + esc(e.message));
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+// Health check
+async function checkHealth() {
+  try {
+    const r = await fetch('/health');
+    if (r.ok) {
+      document.getElementById('h-dot').classList.add('on');
+      const d = await r.json();
+      document.getElementById('h-txt').textContent = 'connected';
+    }
+  } catch (_) {
+    document.getElementById('h-txt').textContent = 'offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+inputEl.focus();
+</script>
+</body>
+</html>

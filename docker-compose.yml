@@ -1,0 +1,36 @@
+services:
+
+  # ── Competitor price monitor (scheduled + HTTP API) ────────────────────────
+  monitor:
+    build: .
+    command: serve /workspace/competitor_monitor.acl --port 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount your ACL files into /workspace
+      - ./examples:/workspace
+      # Persist history DB, memory DB, and vector DB across restarts
+      - acl-data:/root/.acl
+    environment:
+      # LLM provider — set whichever key you have
+      GROQ_API_KEY: "${GROQ_API_KEY}"
+      # ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      # OPENAI_API_KEY: "${OPENAI_API_KEY}"
+
+      # Enable code.run (required by competitor_monitor.acl)
+      ACL_CODE_RUN_ENABLED: "1"
+
+      # Optional: protect the HTTP API with a bearer token
+      # ACL_SERVE_API_KEY: "${ACL_SERVE_API_KEY}"
+
+      # Optional: force a specific LLM provider
+      # ACL_LLM_PROVIDER: "groq"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "acl", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  acl-data:

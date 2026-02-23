@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACL Playground</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Nav ── */
+nav { background: #020617; padding: 0 20px; height: 48px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+.logo { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: #f8fafc; }
+.logo-sub { font-size: 12px; color: #64748b; margin-left: 4px; font-weight: 400; letter-spacing: 0; }
+.nav-sep { width: 1px; height: 24px; background: #1e293b; }
+select { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 12px; cursor: pointer; }
+select:focus { outline: none; border-color: #3b82f6; }
+.spacer { flex: 1; }
+.run-btn { background: #22c55e; color: #020617; border: none; border-radius: 6px; padding: 6px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px; }
+.run-btn:hover:not(:disabled) { background: #16a34a; }
+.run-btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+.run-btn .spinner { display: none; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: #020617; border-radius: 50%; animation: spin 0.6s linear infinite; }
+.run-btn.running .spinner { display: inline-block; }
+.run-btn.running .play-icon { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.health { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #475569; }
+.health .dot { width: 6px; height: 6px; border-radius: 50%; background: #475569; }
+.health .dot.on { background: #22c55e; }
+
+/* ── Panels ── */
+.panels { display: flex; flex: 1; overflow: hidden; }
+.panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.panel-left { border-right: 1px solid #1e293b; }
+.panel-hdr { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; padding: 8px 16px; background: #0f172a; border-bottom: 1px solid #1e293b; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.panel-hdr .badge { background: #1e293b; color: #94a3b8; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; }
+
+/* ── Editor ── */
+.editor-wrap { flex: 1; position: relative; overflow: hidden; }
+#editor { width: 100%; height: 100%; background: #0f172a; color: #e2e8f0; border: none; resize: none; font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.65; padding: 12px 16px; tab-size: 2; outline: none; }
+#editor::placeholder { color: #334155; }
+.line-count { position: absolute; top: 0; right: 12px; padding: 8px 0; font-size: 11px; color: #334155; pointer-events: none; }
+
+/* ── Output ── */
+.output-wrap { flex: 1; overflow-y: auto; padding: 0; }
+.output-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #334155; gap: 8px; }
+.output-empty .icon { font-size: 28px; }
+.output-empty .hint { font-size: 12px; }
+
+/* ── Receipt output ── */
+.receipt-out { padding: 12px 16px; }
+.receipt-status { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.pill { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+.pill-success    { background: #052e16; color: #22c55e; }
+.pill-failed     { background: #450a0a; color: #ef4444; }
+.pill-needs_human{ background: #451a03; color: #f59e0b; }
+.receipt-info { font-size: 12px; color: #64748b; }
+
+.step-card { background: #1e293b; border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; }
+.step-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.step-name { font-weight: 600; font-family: monospace; font-size: 13px; }
+.step-tool { color: #3b82f6; font-family: monospace; font-size: 12px; }
+.step-dur { margin-left: auto; font-size: 11px; color: #475569; }
+.step-ok { color: #22c55e; font-size: 13px; }
+.step-err { color: #ef4444; font-size: 13px; }
+.step-output { font-size: 12px; color: #94a3b8; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; margin-top: 6px; padding: 8px; background: #0f172a; border-radius: 4px; }
+.step-evidence { margin-top: 6px; }
+.ev-row { font-size: 11px; display: flex; gap: 6px; align-items: center; padding: 2px 0; }
+.ev-pass { color: #22c55e; }
+.ev-fail { color: #ef4444; }
+
+.error-banner { background: #450a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; color: #fca5a5; font-size: 13px; white-space: pre-wrap; }
+
+/* ── View toggle ── */
+.view-toggle { display: flex; gap: 2px; background: #0f172a; border-radius: 6px; padding: 2px; }
+.view-toggle button { background: none; border: none; color: #64748b; font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+.view-toggle button.active { background: #1e293b; color: #e2e8f0; }
+.view-toggle button:hover:not(.active) { color: #94a3b8; }
+
+/* ── Pretty output ── */
+.step-pretty { margin-top: 8px; }
+.pretty-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 4px; }
+.pretty-text { font-size: 14px; color: #f1f5f9; line-height: 1.7; padding: 10px 14px; background: #0f172a; border-radius: 6px; border-left: 3px solid #3b82f6; white-space: pre-wrap; word-wrap: break-word; }
+.pretty-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.meta-chip { font-size: 10px; color: #64748b; background: #0f172a; padding: 2px 8px; border-radius: 3px; }
+
+/* ── JSON view ── */
+.json-view { padding: 12px 16px; }
+.json-pre { font-size: 12px; color: #94a3b8; font-family: 'JetBrains Mono', 'Fira Code', monospace; white-space: pre-wrap; word-break: break-all; background: #0f172a; border-radius: 8px; padding: 14px; max-height: 600px; overflow-y: auto; line-height: 1.5; }
+.json-pre .jk { color: #7dd3fc; } /* key */
+.json-pre .js { color: #86efac; } /* string */
+.json-pre .jn { color: #fbbf24; } /* number */
+.json-pre .jb { color: #c084fc; } /* bool/null */
+
+/* ── Bottom bar ── */
+.bottom-bar { background: #020617; border-top: 1px solid #1e293b; padding: 6px 20px; font-size: 11px; color: #334155; display: flex; gap: 16px; flex-shrink: 0; }
+.bottom-bar a { color: #475569; text-decoration: none; }
+.bottom-bar a:hover { color: #94a3b8; }
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .panels { flex-direction: column; }
+  .panel-left { border-right: none; border-bottom: 1px solid #1e293b; flex: none; height: 45vh; }
+  .panel-right { flex: 1; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo"><svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" style="vertical-align:middle;margin-right:6px"><rect width="32" height="32" rx="6" fill="#4f46e5"/><rect x="4" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="4" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="4" y="24.5" width="7" height="2.5" rx="1" fill="white"/><rect x="25.5" y="5" width="2.5" height="22" rx="1" fill="white"/><rect x="21" y="5" width="7" height="2.5" rx="1" fill="white"/><rect x="21" y="24.5" width="7" height="2.5" rx="1" fill="white"/><circle cx="16" cy="16" r="3" fill="white" opacity="0.9"/></svg>ACL <span class="logo-sub">Playground</span></span>
+  <span class="nav-sep"></span>
+  <select id="examples" onchange="loadExample()">
+    <option value="">Load Example…</option>
+    <option value="hello">Hello World</option>
+    <option value="researcher">Web Researcher</option>
+    <option value="summarizer">Page Summarizer</option>
+    <option value="ifelse">IF/ELSE Demo</option>
+    <option value="foreach">FOREACH Demo</option>
+  </select>
+  <span class="spacer"></span>
+  <div class="health"><span class="dot" id="h-dot"></span><span id="h-txt">—</span></div>
+  <span class="nav-sep"></span>
+  <button class="run-btn" id="run-btn" onclick="runCode()">
+    <span class="play-icon">▶</span>
+    <span class="spinner"></span>
+    Run
+  </button>
+</nav>
+
+<div class="panels">
+  <div class="panel panel-left">
+    <div class="panel-hdr">
+      Editor
+      <span class="badge" id="line-badge">0 lines</span>
+    </div>
+    <div class="editor-wrap">
+      <textarea id="editor" spellcheck="false" placeholder="Write your ACL code here…
+
+AGENT MyAgent
+  OUT result
+
+  STEP greet = TOOL llm.generate(prompt=&quot;Say hello in a creative way&quot;)
+
+END"></textarea>
+    </div>
+  </div>
+
+  <div class="panel panel-right">
+    <div class="panel-hdr">
+      Output
+      <span class="badge" id="out-badge"></span>
+      <span class="spacer"></span>
+      <div class="view-toggle" id="view-toggle" style="display:none">
+        <button class="active" onclick="switchView('pretty')">Pretty</button>
+        <button onclick="switchView('json')">JSON</button>
+      </div>
+    </div>
+    <div class="output-wrap" id="output">
+      <div class="output-empty">
+        <div class="icon">⚡</div>
+        <div class="hint">Write ACL code and click Run</div>
+        <div class="hint" style="color:#1e293b">Ctrl+Enter to run</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <span>ACL — Agent Contract Language</span>
+  <span class="spacer"></span>
+  <a href="https://github.com/ranausmanai/acl" target="_blank">GitHub</a>
+</div>
+
+<script>
+// ── Examples ────────────────────────────────────────────────────────────────
+
+const EXAMPLES = {
+  hello: `AGENT HelloWorld
+  OUT greeting
+
+  STEP greet = TOOL llm.generate(prompt="Say hello to the world in a creative, fun way. Keep it to 2 sentences.")
+
+END`,
+
+  researcher: `AGENT WebResearcher
+  OUT summary
+
+  STEP search = TOOL search.web(query="latest AI agent frameworks 2025")
+  STEP summarize = TOOL llm.generate(prompt="Summarize these search results into 3 key bullet points: {search.hits}")
+
+END`,
+
+  summarizer: `AGENT PageSummarizer
+  OUT summary
+
+  STEP fetch = TOOL browser.fetch(url="https://en.wikipedia.org/wiki/Artificial_intelligence")
+  STEP summarize = TOOL llm.generate(prompt="Summarize this article in 5 bullet points: {fetch.text}")
+
+END`,
+
+  ifelse: `AGENT PriceChecker
+  OUT result
+
+  STEP price = TOOL llm.generate(prompt="Return ONLY a number: approximate price of Bitcoin in USD right now. Just the number.")
+
+  IF price.text CONTAINS "100"
+    STEP alert = TOOL llm.generate(prompt="Bitcoin is above 100k! Write a one-line celebration.")
+  ELSE
+    STEP report = TOOL llm.generate(prompt="Bitcoin price: {price.text}. Write a one-line market summary.")
+  END
+
+END`,
+
+  foreach: `AGENT MultiGreeter
+  OUT greetings
+
+  STEP langs = TOOL json.parse(text="[\\"English\\",\\"Spanish\\",\\"Japanese\\"]")
+
+  FOREACH lang IN langs.data
+    STEP greet = TOOL llm.generate(prompt="Say hello world in {lang}. Just the greeting, nothing else.")
+  END
+
+END`
+};
+
+function loadExample() {
+  const sel = document.getElementById('examples');
+  const code = EXAMPLES[sel.value];
+  if (code) {
+    document.getElementById('editor').value = code;
+    updateLineCount();
+  }
+  sel.value = '';
+}
+
+// ── Editor ──────────────────────────────────────────────────────────────────
+
+const editor = document.getElementById('editor');
+
+function updateLineCount() {
+  const lines = editor.value.split('\n').length;
+  document.getElementById('line-badge').textContent = lines + ' line' + (lines !== 1 ? 's' : '');
+}
+
+editor.addEventListener('input', updateLineCount);
+
+// Tab key inserts 2 spaces.
+editor.addEventListener('keydown', function(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = this.selectionStart;
+    this.value = this.value.substring(0, start) + '  ' + this.value.substring(this.selectionEnd);
+    this.selectionStart = this.selectionEnd = start + 2;
+  }
+  // Ctrl+Enter or Cmd+Enter to run.
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    runCode();
+  }
+});
+
+// ── Run ─────────────────────────────────────────────────────────────────────
+
+async function runCode() {
+  const code = editor.value.trim();
+  if (!code) return;
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.classList.add('running');
+
+  const output = document.getElementById('output');
+  output.innerHTML = '<div class="output-empty"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:3px solid transparent;border-top-color:#3b82f6;border-radius:50%;animation:spin 0.6s linear infinite"></div><div class="hint">Running…</div></div>';
+
+  const start = performance.now();
+
+  try {
+    const r = await fetch('/playground', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await r.json();
+    const elapsed = Math.round(performance.now() - start);
+
+    if (data.error && !data.agents) {
+      showError(data.error, elapsed);
+    } else {
+      showReceipt(data, elapsed);
+    }
+  } catch (e) {
+    showError('Request failed: ' + e.message, Math.round(performance.now() - start));
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('running');
+  }
+}
+
+// ── Output rendering ────────────────────────────────────────────────────────
+
+let lastReceipt = null;
+let lastElapsed = 0;
+let currentView = 'pretty';
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtMs(ms) {
+  if (!ms) return '0ms';
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms';
+}
+
+function switchView(view) {
+  currentView = view;
+  const btns = document.querySelectorAll('#view-toggle button');
+  btns.forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === view));
+  if (lastReceipt) showReceipt(lastReceipt, lastElapsed);
+}
+
+// Extract the human-readable "main content" from a step result.
+function extractPretty(result) {
+  if (!result || typeof result !== 'object') return null;
+  // Browser fetch → show title + truncated preview (not the whole page)
+  if (result.url != null && result.title != null && result.text != null) {
+    const preview = result.text.length > 300
+      ? result.text.substring(0, 300).replace(/\s+/g, ' ').trim() + '…'
+      : result.text;
+    const meta = { title: result.title };
+    if (result.status) meta.status = 'HTTP ' + result.status;
+    if (result.word_count) meta.words = result.word_count + ' words fetched';
+    return { main: preview, meta };
+  }
+  // LLM / text tools → show "text"
+  if (result.text != null && typeof result.text === 'string') {
+    return { main: result.text, meta: {} };
+  }
+  // Search results
+  if (result.hits && Array.isArray(result.hits)) {
+    const lines = result.hits.map((h,i) => `${i+1}. ${h.title || ''}\n   ${h.url || ''}\n   ${h.snippet || ''}`).join('\n\n');
+    return { main: lines, meta: { count: result.count + ' results' } };
+  }
+  // JSON parse
+  if (result.data != null) {
+    return { main: typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2), meta: {} };
+  }
+  return null;
+}
+
+// Get metadata chips for a step result (model, provider, word_count, etc.)
+function getMetaChips(result) {
+  if (!result || typeof result !== 'object') return [];
+  const chips = [];
+  if (result.model)      chips.push('model: ' + result.model);
+  if (result.provider)   chips.push('provider: ' + result.provider);
+  if (result.tokens)     chips.push('tokens: ' + result.tokens);
+  if (result.word_count) chips.push(result.word_count + ' words');
+  if (result.status)     chips.push('HTTP ' + result.status);
+  if (result.count != null && !result.hits) chips.push('count: ' + result.count);
+  return chips;
+}
+
+// Syntax-highlight JSON.
+function highlightJSON(obj) {
+  const raw = JSON.stringify(obj, null, 2);
+  return raw.replace(/"([^"]+)"(?=\s*:)/g, '"<span class="jk">$1</span>"')
+            .replace(/:\s*"([^"]*?)"/g, ': "<span class="js">$1</span>"')
+            .replace(/:\s*(\d+\.?\d*)/g, ': <span class="jn">$1</span>')
+            .replace(/:\s*(true|false|null)/g, ': <span class="jb">$1</span>');
+}
+
+function showError(msg, elapsed) {
+  lastReceipt = null;
+  document.getElementById('view-toggle').style.display = 'none';
+  document.getElementById('out-badge').textContent = fmtMs(elapsed);
+  document.getElementById('output').innerHTML = `<div class="receipt-out"><div class="error-banner">${esc(msg)}</div></div>`;
+}
+
+function showReceipt(rec, elapsed) {
+  lastReceipt = rec;
+  lastElapsed = elapsed;
+
+  const output = document.getElementById('output');
+  document.getElementById('out-badge').textContent = fmtMs(elapsed);
+  document.getElementById('view-toggle').style.display = 'flex';
+
+  // JSON view.
+  if (currentView === 'json') {
+    output.innerHTML = `<div class="json-view"><pre class="json-pre">${highlightJSON(rec)}</pre></div>`;
+    return;
+  }
+
+  // Pretty view.
+  const status = rec.status || 'failed';
+  const agents = rec.agents || [];
+  const steps = agents.flatMap(a => a.steps || []);
+
+  let html = '<div class="receipt-out">';
+
+  // Status bar.
+  html += `<div class="receipt-status">
+    <span class="pill pill-${status}">${status.toUpperCase()}</span>
+    <span class="receipt-info">${steps.length} step${steps.length!==1?'s':''} · ${fmtMs(elapsed)}</span>
+  </div>`;
+
+  // Error banner.
+  if (rec.error) {
+    html += `<div class="error-banner">${esc(rec.error)}</div>`;
+  }
+
+  // Steps.
+  for (const st of steps) {
+    html += `<div class="step-card">
+      <div class="step-hdr">
+        <span class="${st.error ? 'step-err' : 'step-ok'}">${st.error ? '✗' : '✓'}</span>
+        <span class="step-name">${esc(st.name)}</span>
+        <span class="step-tool">${esc(st.target || st.kind || '')}</span>
+        <span class="step-dur">${fmtMs(st.duration_ms)}</span>
+      </div>`;
+
+    // Get the step's result — could be in result (object) or output_preview (JSON string).
+    let stepData = st.result;
+    if (!stepData && st.output_preview) {
+      try { stepData = JSON.parse(st.output_preview); } catch(_) { stepData = null; }
+    }
+
+    if (st.error) {
+      html += `<div class="step-pretty"><div class="pretty-text" style="border-left-color:#ef4444;color:#fca5a5">${esc(st.error)}</div></div>`;
+    } else if (stepData && typeof stepData === 'object') {
+      const pretty = extractPretty(stepData);
+      if (pretty) {
+        if (pretty.meta && pretty.meta.title) {
+          html += `<div class="step-pretty"><div class="pretty-label">${esc(pretty.meta.title)}</div>`;
+        } else {
+          html += '<div class="step-pretty">';
+        }
+        html += `<div class="pretty-text">${esc(pretty.main)}</div>`;
+        // Collect chips from both extractPretty meta and general meta
+        const chips = getMetaChips(stepData);
+        if (pretty.meta) {
+          if (pretty.meta.status) chips.push(pretty.meta.status);
+          if (pretty.meta.words) chips.push(pretty.meta.words);
+        }
+        if (chips.length) {
+          html += '<div class="pretty-meta">';
+          for (const c of chips) html += `<span class="meta-chip">${esc(c)}</span>`;
+          html += '</div>';
+        }
+        html += '</div>';
+      } else {
+        html += `<div class="step-output">${esc(JSON.stringify(stepData, null, 2))}</div>`;
+      }
+    } else if (st.output_preview) {
+      html += `<div class="step-pretty"><div class="pretty-text">${esc(st.output_preview)}</div></div>`;
+    }
+
+    // Evidence checks.
+    if (st.evidence && st.evidence.length) {
+      html += '<div class="step-evidence">';
+      for (const ev of st.evidence) {
+        const pass = ev.passed || ev.ok;
+        html += `<div class="ev-row">
+          <span class="${pass ? 'ev-pass' : 'ev-fail'}">${pass ? '✓' : '✗'}</span>
+          <span>${esc(ev.expression || ev.rule || '')}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+  }
+
+  // Final result — show the last step's main text as the final output.
+  if (steps.length && status === 'success') {
+    let lastData = null;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      let d = steps[i].result;
+      if (!d && steps[i].output_preview) {
+        try { d = JSON.parse(steps[i].output_preview); } catch(_) {}
+      }
+      if (d) { lastData = d; break; }
+    }
+    if (lastData) {
+      const pretty = extractPretty(lastData);
+      if (pretty) {
+        html += `<div class="step-card" style="border:1px solid #22c55e33">
+          <div class="step-hdr"><span class="step-ok">✓</span><span class="step-name" style="color:#22c55e">Final Result</span></div>
+          <div class="step-pretty"><div class="pretty-text" style="border-left-color:#22c55e">${esc(pretty.main)}</div></div>
+        </div>`;
+      }
+    }
+  }
+
+  html += '</div>';
+  output.innerHTML = html;
+}
+
+// ── Health ───────────────────────────────────────────────────────────────────
+
+async function checkHealth() {
+  try {
+    const r = await fetch('/health');
+    if (r.ok) {
+      document.getElementById('h-dot').classList.add('on');
+      const d = await r.json();
+      document.getElementById('h-txt').textContent = 'online · ' + (d.agents||[]).length + ' agents';
+    }
+  } catch (_) {
+    document.getElementById('h-txt').textContent = 'offline';
+  }
+}
+
+checkHealth();
+setInterval(checkHealth, 30000);
+updateLineCount();
+</script>
+</body>
+</html>

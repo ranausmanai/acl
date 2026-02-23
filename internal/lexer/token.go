@@ -45,6 +45,10 @@ const (
 	KWPARALLEL // PARALLEL
 	KWREMOTE   // REMOTE
 	KWSCHEDULE // SCHEDULE
+	KWIF       // IF
+	KWELSE     // ELSE
+	KWEND      // END
+	KWFOREACH  // FOREACH
 	kwEND_
 
 	// ── Punctuation / operators ─────────────────────────────────────────────
@@ -78,6 +82,7 @@ var tokenNames = map[TokenType]string{
 	KWONFAIL: "ONFAIL", KWRESULT: "RESULT", KWFOR: "FOR",
 	KWAS: "AS", KWTOOL: "TOOL", KWPARALLEL: "PARALLEL",
 	KWREMOTE: "REMOTE", KWSCHEDULE: "SCHEDULE",
+	KWIF: "IF", KWELSE: "ELSE", KWEND: "END", KWFOREACH: "FOREACH",
 	LPAREN: "(", RPAREN: ")", LBRACKET: "[", RBRACKET: "]",
 	COMMA: ",", DOT: ".", COLON: ":", ASSIGN: "=",
 	EQEQ: "==", NEQ: "!=", LT: "<", LTE: "<=", GT: ">", GTE: ">=",
@@ -108,12 +113,16 @@ var keywords = map[string]TokenType{
 	"CHECK":    KWCHECK,
 	"ONFAIL":   KWONFAIL,
 	"RESULT":   KWRESULT,
-	"FOR":      KWFOR,
-	"AS":       KWAS,
-	"TOOL":     KWTOOL,
+	"FOR":     KWFOR,
+	"AS":      KWAS,
+	"TOOL":    KWTOOL,
 	"PARALLEL": KWPARALLEL,
-	"REMOTE":   KWREMOTE,
+	"REMOTE":  KWREMOTE,
 	"SCHEDULE": KWSCHEDULE,
+	"IF":      KWIF,
+	"ELSE":    KWELSE,
+	"END":     KWEND,
+	"FOREACH": KWFOREACH,
 }
 
 // Token is a single lexical unit.

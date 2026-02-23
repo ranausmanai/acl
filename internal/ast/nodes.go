@@ -38,30 +38,70 @@ type AgentDef struct {
 
 // ── Step definition ──────────────────────────────────────────────────────────
 
+// StepDef defines one step within an agent body.
+// For SKTool/SKAgent the usual fields apply.
+// For SKIf the IfCond/IfThen/IfElse fields are used.
+// For SKForeach the ForeachVar/ForeachOver/ForeachBody fields are used.
 type StepDef struct {
 	Name          string
-	Kind          StepKind // SKTool | SKAgent
-	Target        string   // tool name or agent name
+	Kind          StepKind // SKTool | SKAgent | SKIf | SKForeach
+	Target        string   // tool name or agent name (SKTool / SKAgent)
 	Args          map[string]*Arg
 	Check         *evidence.Expr // nil = no CHECK
 	OnFail        *OnFail
 	Line          int
 	ParallelGroup int // 0 = sequential; same non-zero value = run concurrently
+
+	// SKIf — IF/ELSE block
+	IfCond *evidence.Expr
+	IfThen []*StepDef
+	IfElse []*StepDef // nil when there is no ELSE branch
+
+	// SKForeach — FOREACH var IN expr … END
+	ForeachVar  string
+	ForeachOver *evidence.Expr
+	ForeachBody []*StepDef
 }
 
-// StepKind distinguishes TOOL and AGENT steps.
+// StepKind distinguishes step types.
 type StepKind int
 
 const (
-	SKTool  StepKind = iota // STEP x = TOOL tool(...)
-	SKAgent                 // STEP x = AGENT agent(...)
+	SKTool    StepKind = iota // STEP x = TOOL tool(...)
+	SKAgent                   // STEP x = AGENT agent(...)
+	SKIf                      // IF expr … ELSE … END
+	SKForeach                 // FOREACH var IN expr … END
 )
 
-// Arg is a step argument value: either a static literal or a runtime expr.
+func (k StepKind) String() string {
+	switch k {
+	case SKTool:
+		return "tool"
+	case SKAgent:
+		return "agent"
+	case SKIf:
+		return "if"
+	case SKForeach:
+		return "foreach"
+	default:
+		return "unknown"
+	}
+}
+
+// Arg is a step argument value: a static literal, a runtime expr, or an
+// interpolated string containing one or more {expr} segments.
 type Arg struct {
-	Literal  any            // non-nil for string/int/float/bool/[]any
-	ExprRef  *evidence.Expr // non-nil when value must be evaluated at runtime
+	Literal   any            // non-nil for plain string/int/float/bool/[]any
+	ExprRef   *evidence.Expr // non-nil when value is a bare step reference
 	IsLiteral bool
+	Parts     []ArgPart // non-nil for interpolated strings: "Hello {user.name}"
+}
+
+// ArgPart is one segment of an interpolated string.
+// Exactly one of Text or Expr is set.
+type ArgPart struct {
+	Text string         // literal text segment
+	Expr *evidence.Expr // {expr} segment — evaluated at runtime
 }
 
 // OnFail holds the ONFAIL policy for a step.

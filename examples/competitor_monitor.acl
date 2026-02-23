@@ -1,0 +1,72 @@
+INTENT "Competitor price intelligence monitor — runs every 3 minutes, compares against previous snapshot"
+
+ALLOW  http.request, json.parse, memory.set, memory.get,
+       code.run, llm.generate, file.write
+
+# Fire PriceMonitor automatically every 3 minutes.
+# Start with: acl serve examples/competitor_monitor.acl
+# Then call on-demand: POST http://localhost:8080/run/PriceMonitor
+SCHEDULE PriceMonitor "*/3 * * * *"
+
+AGENT PriceMonitor
+  TOOLS http.request, json.parse, memory.set, memory.get, code.run, llm.generate, file.write
+
+  # ── Step 1: Recall last recorded snapshot (empty on very first run) ────────
+  STEP prev = TOOL memory.get(
+    key="btc_price_raw",
+    namespace="monitor")
+
+  # ── Step 2: Fetch live price — public endpoint, no API key needed ──────────
+  STEP resp = TOOL http.request(
+    url="https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD,EUR,GBP",
+    method="GET")
+    CHECK resp.status == 200
+    ONFAIL stop
+
+  # ── Step 3: Parse the price response ──────────────────────────────────────
+  STEP price = TOOL json.parse(text=resp.text)
+    CHECK price.ok == true
+
+  # ── Step 4: Stage current price to disk so code.run can read it ───────────
+  STEP _ = TOOL file.write(
+    path="/tmp/btc_current.json",
+    content=resp.text)
+
+  # ── Step 5: Persist current price for the NEXT run's comparison ────────────
+  STEP _ = TOOL memory.set(
+    key="btc_price_raw",
+    namespace="monitor",
+    value=resp.text,
+    ttl=86400)
+
+  # ── Step 6: Merge current + previous into one JSON object ─────────────────
+  # env=prev injects the memory.get result as shell env vars:
+  #   $value       → previous price JSON string (empty on first run)
+  #   $found       → "true" | "false"
+  #   $stored_at   → ISO timestamp of previous run
+  # The script reads current from /tmp/btc_current.json (written in step 4)
+  STEP merged = TOOL code.run(
+    language="python",
+    code="import json,os; curr=json.load(open('/tmp/btc_current.json')); found=os.environ.get('found','false')=='true'; prev_str=os.environ.get('value',''); prev=json.loads(prev_str) if found and prev_str else None; print(json.dumps({'current':curr,'previous':prev,'prev_at':os.environ.get('stored_at')}))",
+    env=prev)
+    CHECK merged.exit_code == 0
+
+  # ── Step 7: Parse merged output so LLM gets a structured object ────────────
+  STEP intel = TOOL json.parse(text=merged.stdout)
+    CHECK intel.ok == true
+
+  # ── Step 8: Generate market intelligence report ────────────────────────────
+  STEP report = TOOL llm.generate(
+    prompt="You are a market intelligence analyst. The data contains 'current' and 'previous' Bitcoin price snapshots (USD/EUR/GBP). Calculate USD change and % change vs previous. If previous is null, skip the comparison. Output ONLY valid JSON with exactly these fields: price_usd (number), prev_usd (number or null), change_usd (number or null), change_pct (number or null, 2 decimal places), signal ('stable'|'up'|'down'|'alert' — use 'alert' if absolute change > 1%), brief (string, one concise sentence), prev_at (string or null).",
+    data=intel.data,
+    format="json")
+    CHECK len(report.text) > 20
+
+  # ── Step 9: Persist report for downstream systems ─────────────────────────
+  STEP saved = TOOL file.write(
+    path="/tmp/competitor_intelligence.json",
+    content=report.text)
+    CHECK saved.written == true
+
+  MUST resp.status == 200 and merged.exit_code == 0 and len(report.text) > 20
+  RESULT report
