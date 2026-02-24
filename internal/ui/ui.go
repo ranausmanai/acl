@@ -18,6 +18,9 @@ var agenticFlowHTML []byte
 //go:embed quickstart.html
 var quickstartHTML []byte
 
+//go:embed platform.html
+var platformHTML []byte
+
 // Handler returns an http.Handler that serves the dashboard HTML.
 func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -51,5 +54,14 @@ func QuickstartHandler() http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write(quickstartHTML) //nolint
+	})
+}
+
+// PlatformHandler returns an http.Handler that serves the ACL Platform UI.
+func PlatformHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write(platformHTML) //nolint
 	})
 }

@@ -30,6 +30,17 @@ type Config struct {
 	ReceiptPath string         // path to write receipt.json (empty = skip)
 	Vars        map[string]any // variables from --vars JSON
 	MaxDepth    int            // max agent call depth (default 10)
+	OnEvent     func(Event)    // optional execution event callback for streaming UIs
+}
+
+// Event is an optional execution callback payload emitted while a run executes.
+// It is best-effort telemetry and does not affect runtime behavior.
+type Event struct {
+	Type   string             `json:"type"` // run.started|run.finished|agent.started|agent.finished|step.started|step.finished
+	Agent  string             `json:"agent,omitempty"`
+	Step   string             `json:"step,omitempty"`
+	Target string             `json:"target,omitempty"`
+	Trace  *receipt.StepTrace `json:"trace,omitempty"`
 }
 
 // RunSource parses, expands, checks, and executes an ACL program from source.
@@ -273,6 +284,10 @@ func RunNamedAgent(ctx context.Context, nodes []ast.Node, agentName string, cfg 
 		maxCalls: maxCalls,
 		calls:    &calls,
 		maxDepth: cfg.MaxDepth,
+		onEvent:  cfg.OnEvent,
+	}
+	if cfg.OnEvent != nil {
+		cfg.OnEvent(Event{Type: "run.started", Agent: agentName})
 	}
 
 	atrace, agentErr := run.runAgent(ctx, target, cfg.Vars, 0)
@@ -286,6 +301,9 @@ func RunNamedAgent(ctx context.Context, nodes []ast.Node, agentName string, cfg 
 	}
 
 	r := rb.Build()
+	if cfg.OnEvent != nil {
+		cfg.OnEvent(Event{Type: "run.finished", Agent: agentName})
+	}
 	if cfg.ReceiptPath != "" {
 		_ = rb.Write(cfg.ReceiptPath)
 	}
@@ -304,6 +322,13 @@ type runner struct {
 	maxCalls int64 // 0 = unlimited
 	calls    *int64
 	maxDepth int
+	onEvent  func(Event)
+}
+
+func (r *runner) emit(e Event) {
+	if r.onEvent != nil {
+		r.onEvent(e)
+	}
 }
 
 func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[string]any, depth int) (*receipt.AgentTrace, error) {
@@ -318,6 +343,7 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 		Tools:   agent.Tools,
 		Status:  "running",
 	}
+	r.emit(Event{Type: "agent.started", Agent: agent.Name})
 	if agent.FromTemplate != "" {
 		atrace.FromTemplate = agent.FromTemplate
 		atrace.TemplateArgs = agent.TemplateArgs
@@ -375,39 +401,46 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 			if step.Kind == ast.SKIf || step.Kind == ast.SKForeach {
 				stepErr := r.runControlStep(ctx, step, env)
 				strace := receipt.StepTrace{
-					Name:      step.Name,
-					Kind:      step.Kind.String(),
-					StartedAt: start,
-					EndedAt:   receipt.Now(),
+					Name:       step.Name,
+					Kind:       step.Kind.String(),
+					StartedAt:  start,
+					EndedAt:    receipt.Now(),
 					DurationMS: receipt.DurationMS(start),
 				}
 				if stepErr != nil {
 					strace.Error = stepErr.Error()
 					atrace.Steps = append(atrace.Steps, strace)
+					r.emit(Event{Type: "step.finished", Agent: agent.Name, Step: step.Name, Target: step.Target, Trace: &strace})
 					atrace.Status = "failed"
 					atrace.Error = stepErr.Error()
+					r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 					return atrace, stepErr
 				}
 				atrace.Steps = append(atrace.Steps, strace)
+				r.emit(Event{Type: "step.finished", Agent: agent.Name, Step: step.Name, Target: step.Target, Trace: &strace})
 				i++
 				continue
 			}
+			r.emit(Event{Type: "step.started", Agent: agent.Name, Step: step.Name, Target: step.Target})
 
 			val, hit, retriesUsed, checkPassed, stepErr := r.execStep(ctx, step, env)
 
 			strace := r.buildStepTrace(step, env, start, val, hit, retriesUsed, checkPassed, stepErr)
 			atrace.Steps = append(atrace.Steps, strace)
+			r.emit(Event{Type: "step.finished", Agent: agent.Name, Step: step.Name, Target: step.Target, Trace: &strace})
 
 			if stepErr != nil {
 				if step.OnFail == nil {
 					atrace.Status = "failed"
 					atrace.Error = stepErr.Error()
+					r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 					return atrace, stepErr
 				}
 				switch step.OnFail.Policy {
 				case "retry":
 					atrace.Status = "failed"
 					atrace.Error = stepErr.Error()
+					r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 					return atrace, stepErr
 				case "fallback":
 					if fb, ok := stepMap[step.OnFail.FallbackStep]; ok {
@@ -424,10 +457,12 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 				case "askhuman":
 					atrace.Status = "needs_human"
 					atrace.Error = stepErr.Error()
+					r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 					return atrace, nil
 				case "stop":
 					atrace.Status = "failed"
 					atrace.Error = stepErr.Error()
+					r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 					return atrace, stepErr
 				}
 			} else {
@@ -455,6 +490,7 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 				go func(idx int, step *ast.StepDef) {
 					defer wg.Done()
 					start := receipt.Now()
+					r.emit(Event{Type: "step.started", Agent: agent.Name, Step: step.Name, Target: step.Target})
 					val, hit, ret, cp, err := r.execStep(ctx, step, envSnap)
 					results[idx] = pResult{step, val, hit, ret, cp, err, start}
 				}(pi, ps)
@@ -467,6 +503,7 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 			for _, res := range results {
 				strace := r.buildStepTrace(res.step, envSnap, res.start, res.val, res.hit, res.retriesUsed, res.checkPassed, res.err)
 				atrace.Steps = append(atrace.Steps, strace)
+				r.emit(Event{Type: "step.finished", Agent: agent.Name, Step: res.step.Name, Target: res.step.Target, Trace: &strace})
 				if res.err != nil && firstErr == nil {
 					firstErr = res.err
 					firstErrStep = res.step
@@ -478,6 +515,7 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 				_ = firstErrStep
 				atrace.Status = "failed"
 				atrace.Error = firstErr.Error()
+				r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 				return atrace, firstErr
 			}
 			i += len(runSet)
@@ -496,6 +534,7 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 			}
 			atrace.Status = "failed"
 			atrace.Error = msg
+			r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 			return atrace, fmt.Errorf("%s", msg)
 		}
 	}
@@ -506,12 +545,14 @@ func (r *runner) runAgent(ctx context.Context, agent *ast.AgentDef, inputs map[s
 		if evalErr != nil {
 			atrace.Status = "failed"
 			atrace.Error = evalErr.Error()
+			r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 			return atrace, evalErr
 		}
 		atrace.Result = val
 	}
 
 	atrace.Status = "success"
+	r.emit(Event{Type: "agent.finished", Agent: agent.Name})
 	return atrace, nil
 }
 

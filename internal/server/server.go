@@ -39,14 +39,18 @@ import (
 
 // Server hosts a parsed ACL program over HTTP.
 type Server struct {
-	src       string
-	nodes     []ast.Node // expanded AST (read-only after NewServer)
-	agents    map[string]*ast.AgentDef
-	remotes   map[string]string // agentName → base URL
-	schedules []*ast.ScheduleDecl
-	reg       *protocol.Registry
-	apiKey    string
-	mu        sync.RWMutex // protects nodes/agents/remotes during hot-reload (future)
+	src             string
+	nodes           []ast.Node // expanded AST (read-only after NewServer)
+	agents          map[string]*ast.AgentDef
+	remotes         map[string]string // agentName → base URL
+	schedules       []*ast.ScheduleDecl
+	reg             *protocol.Registry
+	apiKey          string
+	mu              sync.RWMutex // protects nodes/agents/remotes during hot-reload (future)
+	events          *platformEventHub
+	approvals       *approvalStore
+	creds           *credentialStore
+	toolSandboxMode string
 }
 
 // NewServer parses and expands src, returning a ready-to-Start server.
@@ -65,12 +69,23 @@ func NewServer(src string, reg *protocol.Registry) (*Server, error) {
 	}
 
 	s := &Server{
-		src:     src,
-		nodes:   expanded,
-		agents:  make(map[string]*ast.AgentDef),
-		remotes: make(map[string]string),
-		reg:     reg,
-		apiKey:  os.Getenv("ACL_SERVE_API_KEY"),
+		src:             src,
+		nodes:           expanded,
+		agents:          make(map[string]*ast.AgentDef),
+		remotes:         make(map[string]string),
+		reg:             reg,
+		apiKey:          os.Getenv("ACL_SERVE_API_KEY"),
+		events:          newPlatformEventHub(),
+		approvals:       newApprovalStore(),
+		toolSandboxMode: strings.TrimSpace(os.Getenv("ACL_TOOL_SANDBOX")),
+	}
+	if s.toolSandboxMode == "" {
+		s.toolSandboxMode = "off"
+	}
+	if cs, err := newCredentialStore(); err == nil {
+		s.creds = cs
+	} else {
+		s.creds = newCredentialStoreInMemory()
 	}
 
 	for _, n := range expanded {
@@ -137,6 +152,24 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /agenticflow", ui.AgenticFlowHandler())
 	mux.HandleFunc("POST /agenticflow", s.handleAgenticFlow)
 	mux.Handle("GET /quickstart", ui.QuickstartHandler())
+	mux.Handle("GET /platform", ui.PlatformHandler())
+	mux.Handle("GET /api/platform/runs/stream", s.authMiddleware(http.HandlerFunc(s.handlePlatformRunsStream)))
+	mux.Handle("GET /api/platform/overview", s.authMiddleware(http.HandlerFunc(s.handlePlatformOverview)))
+	mux.Handle("GET /api/platform/runs", s.authMiddleware(http.HandlerFunc(s.handlePlatformRuns)))
+	mux.Handle("GET /api/platform/runs/{id}", s.authMiddleware(http.HandlerFunc(s.handlePlatformRunByID)))
+	mux.Handle("GET /api/platform/packs", s.authMiddleware(http.HandlerFunc(s.handlePlatformPacks)))
+	mux.Handle("POST /api/platform/packs/install", s.authMiddleware(http.HandlerFunc(s.handlePlatformPacksInstall)))
+	mux.Handle("GET /api/platform/manifests", s.authMiddleware(http.HandlerFunc(s.handlePlatformManifests)))
+	mux.Handle("GET /api/platform/manifests/{id}", s.authMiddleware(http.HandlerFunc(s.handlePlatformManifestByID)))
+	mux.Handle("GET /api/platform/templates", s.authMiddleware(http.HandlerFunc(s.handlePlatformTemplates)))
+	mux.Handle("POST /api/platform/templates/run", s.authMiddleware(http.HandlerFunc(s.handlePlatformTemplateRun)))
+	mux.Handle("POST /api/platform/templates/preview", s.authMiddleware(http.HandlerFunc(s.handlePlatformTemplatePreview)))
+	mux.Handle("GET /api/platform/approvals", s.authMiddleware(http.HandlerFunc(s.handlePlatformApprovals)))
+	mux.Handle("POST /api/platform/approvals/{id}/approve", s.authMiddleware(http.HandlerFunc(s.handlePlatformApprovalApprove)))
+	mux.Handle("POST /api/platform/approvals/{id}/reject", s.authMiddleware(http.HandlerFunc(s.handlePlatformApprovalReject)))
+	mux.Handle("GET /api/platform/credentials", s.authMiddleware(http.HandlerFunc(s.handlePlatformCredentials)))
+	mux.Handle("POST /api/platform/credentials", s.authMiddleware(http.HandlerFunc(s.handlePlatformCredentialUpsert)))
+	mux.Handle("DELETE /api/platform/credentials/{name}", s.authMiddleware(http.HandlerFunc(s.handlePlatformCredentialDelete)))
 	return mux
 }
 
@@ -197,9 +230,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	names := s.AgentNames()
 	s.mu.RUnlock()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":  "ok",
-		"version": "0.1.0",
-		"agents":  names,
+		"status":       "ok",
+		"version":      "0.1.0",
+		"agents":       names,
+		"tool_sandbox": s.toolSandboxMode,
 	})
 }
 
@@ -358,12 +392,25 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		authHeader := r.Header.Get("Authorization")
+		if authHeader == "Bearer "+s.apiKey || r.URL.Query().Get("token") == s.apiKey || r.URL.Query().Get("api_key") == s.apiKey {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if authHeader != "Bearer "+s.apiKey {
 			writeError(w, http.StatusUnauthorized, "unauthorized: invalid or missing Bearer token")
 			return
 		}
-		next.ServeHTTP(w, r)
 	})
+}
+
+// SetToolSandboxMode configures the experimental tool sandbox mode reported by the server.
+// Current modes are informational in this MVP: off|subprocess.
+func (s *Server) SetToolSandboxMode(mode string) {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	if mode == "" {
+		mode = "off"
+	}
+	s.toolSandboxMode = mode
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

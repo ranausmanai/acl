@@ -11,6 +11,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/ranausmanai/acl/internal/checker"
+	"github.com/ranausmanai/acl/internal/lexer"
+	"github.com/ranausmanai/acl/internal/parser"
+	"github.com/ranausmanai/acl/tools/builtin"
 )
 
 //go:embed data/**
@@ -49,6 +54,12 @@ type InstallResult struct {
 	Path   string
 	Files  int
 	Source string
+}
+
+type ValidateResult struct {
+	PackPath        string
+	TemplateCount   int
+	TemplatesPassed int
 }
 
 func List() ([]PackMeta, error) {
@@ -105,6 +116,135 @@ func Install(name, outputDir string) (*InstallResult, error) {
 		Files:  files,
 		Source: "builtin",
 	}, nil
+}
+
+// ReadFile reads a file from a built-in pack by relative path (e.g. templates/x.acl).
+func ReadFile(packName, relPath string) ([]byte, error) {
+	return builtins.ReadFile(filepath.ToSlash(filepath.Join("data", packName, relPath)))
+}
+
+// Init scaffolds a local pack directory for authors.
+func Init(name, outputDir string) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", fmt.Errorf("pack name required")
+	}
+	if outputDir == "" {
+		outputDir = filepath.Join(".", name)
+	}
+	if err := os.MkdirAll(filepath.Join(outputDir, "templates"), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Join(outputDir, "samples"), 0o755); err != nil {
+		return "", err
+	}
+	packJSON := fmt.Sprintf(`{
+  "name": %q,
+  "title": %q,
+  "version": "0.1.0",
+  "description": "ACL pack scaffold",
+  "docs": "README.md",
+  "tool_manifest": "tool-manifest.json",
+  "templates": [
+    { "name": "example", "file": "templates/example.acl", "description": "Starter template" }
+  ]
+}
+`, name, strings.Title(strings.ReplaceAll(name, "-", " "))+" Pack")
+	manifestJSON := `{
+  "version": "1",
+  "provider": "example",
+  "tools": [
+    {
+      "name": "example.read",
+      "transport": "http",
+      "method": "GET",
+      "path": "/example",
+      "side_effect": "read",
+      "approval_required": false
+    }
+  ]
+}
+`
+	templateACL := `INTENT "Pack scaffold template"
+ALLOW llm.generate
+
+AGENT ExamplePackTemplate
+  OUT answer
+  TOOLS llm.generate
+
+  STEP answer = TOOL llm.generate(prompt="This is a starter ACL pack template. Replace with your workflow.")
+  MUST has(answer, "text")
+  RESULT answer
+END
+`
+	sampleVars := `{
+  "api_key": "YOUR_API_KEY",
+  "base_url": "https://api.example.com",
+  "request_json": "{\"example\":true}"
+}
+`
+	readme := "# ACL Pack Scaffold\n\nFill in `tool-manifest.json`, `templates/*.acl`, and sample vars files.\n\nValidate with `acl pack validate .`\n"
+	files := map[string]string{
+		"pack.json":                packJSON,
+		"tool-manifest.json":       manifestJSON,
+		"templates/example.acl":    templateACL,
+		"samples/vars.sample.json": sampleVars,
+		"README.md":                readme,
+	}
+	for rel, content := range files {
+		p := filepath.Join(outputDir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			return "", err
+		}
+	}
+	return outputDir, nil
+}
+
+// Validate checks pack metadata, manifest existence, and template syntax/semantics.
+func Validate(packPath string) (*ValidateResult, error) {
+	if packPath == "" {
+		packPath = "."
+	}
+	data, err := os.ReadFile(filepath.Join(packPath, "pack.json"))
+	if err != nil {
+		return nil, fmt.Errorf("read pack.json: %w", err)
+	}
+	var meta PackMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, fmt.Errorf("parse pack.json: %w", err)
+	}
+	if meta.Name == "" {
+		return nil, fmt.Errorf("pack.json: name is required")
+	}
+	if meta.ToolManifest != "" {
+		if _, err := os.Stat(filepath.Join(packPath, meta.ToolManifest)); err != nil {
+			return nil, fmt.Errorf("manifest file missing: %s", meta.ToolManifest)
+		}
+	}
+	reg := builtin.NewRegistry()
+	out := &ValidateResult{PackPath: packPath}
+	for _, tpl := range meta.Templates {
+		out.TemplateCount++
+		src, err := os.ReadFile(filepath.Join(packPath, tpl.File))
+		if err != nil {
+			return nil, fmt.Errorf("read template %s: %w", tpl.File, err)
+		}
+		toks, err := lexer.New(string(src)).Tokenize()
+		if err != nil {
+			return nil, fmt.Errorf("template %s lex: %w", tpl.File, err)
+		}
+		nodes, err := parser.Parse(toks)
+		if err != nil {
+			return nil, fmt.Errorf("template %s parse: %w", tpl.File, err)
+		}
+		if errs := checker.Check(nodes, reg.Names()); len(errs) > 0 {
+			return nil, fmt.Errorf("template %s check: %v", tpl.File, errs[0])
+		}
+		out.TemplatesPassed++
+	}
+	return out, nil
 }
 
 func loadIndex() (*Index, error) {
