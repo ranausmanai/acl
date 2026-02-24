@@ -65,6 +65,47 @@ func (h *platformEventHub) Publish(e platformEvent) {
 	}
 }
 
+const platformSessionCookie = "acl_platform_session"
+
+type platformSessionStore struct {
+	mu    sync.RWMutex
+	items map[string]time.Time
+}
+
+func newPlatformSessionStore() *platformSessionStore {
+	return &platformSessionStore{items: map[string]time.Time{}}
+}
+func (s *platformSessionStore) Create() string {
+	id := randID()
+	s.mu.Lock()
+	s.items[id] = time.Now().UTC().Add(24 * time.Hour)
+	s.mu.Unlock()
+	return id
+}
+func (s *platformSessionStore) Valid(id string) bool {
+	if strings.TrimSpace(id) == "" {
+		return false
+	}
+	s.mu.RLock()
+	exp, ok := s.items[id]
+	s.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	if time.Now().UTC().After(exp) {
+		s.mu.Lock()
+		delete(s.items, id)
+		s.mu.Unlock()
+		return false
+	}
+	return true
+}
+func (s *platformSessionStore) Delete(id string) {
+	s.mu.Lock()
+	delete(s.items, id)
+	s.mu.Unlock()
+}
+
 type approvalRequest struct {
 	ID           string         `json:"id"`
 	Pack         string         `json:"pack"`
@@ -262,6 +303,84 @@ func (s *Server) handlePlatformRunsStream(w http.ResponseWriter, r *http.Request
 			flusher.Flush()
 		}
 	}
+}
+
+func (s *Server) platformAuthEnabled() bool {
+	return strings.TrimSpace(s.platformAdminPassword) != ""
+}
+
+func (s *Server) platformAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.platformAuthEnabled() {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if c, err := r.Cookie(platformSessionCookie); err == nil && s.platformSessions.Valid(c.Value) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "platform login required")
+	})
+}
+
+func (s *Server) handlePlatformMe(w http.ResponseWriter, r *http.Request) {
+	authenticated := false
+	if !s.platformAuthEnabled() {
+		authenticated = true
+	} else if c, err := r.Cookie(platformSessionCookie); err == nil && s.platformSessions.Valid(c.Value) {
+		authenticated = true
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"auth_enabled":   s.platformAuthEnabled(),
+		"authenticated":  authenticated,
+		"auth_mode":      map[bool]string{true: "admin_password", false: "none"}[s.platformAuthEnabled()],
+		"session_cookie": platformSessionCookie,
+	})
+}
+
+func (s *Server) handlePlatformLogin(w http.ResponseWriter, r *http.Request) {
+	if !s.platformAuthEnabled() {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "auth_enabled": false})
+		return
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if body.Password != s.platformAdminPassword {
+		writeError(w, http.StatusUnauthorized, "invalid password")
+		return
+	}
+	sid := s.platformSessions.Create()
+	http.SetCookie(w, &http.Cookie{
+		Name:     platformSessionCookie,
+		Value:    sid,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   24 * 60 * 60,
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "auth_enabled": true})
+}
+
+func (s *Server) handlePlatformLogout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(platformSessionCookie); err == nil {
+		s.platformSessions.Delete(c.Value)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     platformSessionCookie,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) handlePlatformOverview(w http.ResponseWriter, _ *http.Request) {

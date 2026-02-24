@@ -39,18 +39,20 @@ import (
 
 // Server hosts a parsed ACL program over HTTP.
 type Server struct {
-	src             string
-	nodes           []ast.Node // expanded AST (read-only after NewServer)
-	agents          map[string]*ast.AgentDef
-	remotes         map[string]string // agentName → base URL
-	schedules       []*ast.ScheduleDecl
-	reg             *protocol.Registry
-	apiKey          string
-	mu              sync.RWMutex // protects nodes/agents/remotes during hot-reload (future)
-	events          *platformEventHub
-	approvals       *approvalStore
-	creds           *credentialStore
-	toolSandboxMode string
+	src                   string
+	nodes                 []ast.Node // expanded AST (read-only after NewServer)
+	agents                map[string]*ast.AgentDef
+	remotes               map[string]string // agentName → base URL
+	schedules             []*ast.ScheduleDecl
+	reg                   *protocol.Registry
+	apiKey                string
+	mu                    sync.RWMutex // protects nodes/agents/remotes during hot-reload (future)
+	events                *platformEventHub
+	approvals             *approvalStore
+	creds                 *credentialStore
+	toolSandboxMode       string
+	platformAdminPassword string
+	platformSessions      *platformSessionStore
 }
 
 // NewServer parses and expands src, returning a ready-to-Start server.
@@ -69,15 +71,17 @@ func NewServer(src string, reg *protocol.Registry) (*Server, error) {
 	}
 
 	s := &Server{
-		src:             src,
-		nodes:           expanded,
-		agents:          make(map[string]*ast.AgentDef),
-		remotes:         make(map[string]string),
-		reg:             reg,
-		apiKey:          os.Getenv("ACL_SERVE_API_KEY"),
-		events:          newPlatformEventHub(),
-		approvals:       newApprovalStore(),
-		toolSandboxMode: strings.TrimSpace(os.Getenv("ACL_TOOL_SANDBOX")),
+		src:                   src,
+		nodes:                 expanded,
+		agents:                make(map[string]*ast.AgentDef),
+		remotes:               make(map[string]string),
+		reg:                   reg,
+		apiKey:                os.Getenv("ACL_SERVE_API_KEY"),
+		events:                newPlatformEventHub(),
+		approvals:             newApprovalStore(),
+		toolSandboxMode:       strings.TrimSpace(os.Getenv("ACL_TOOL_SANDBOX")),
+		platformAdminPassword: strings.TrimSpace(os.Getenv("ACL_PLATFORM_ADMIN_PASSWORD")),
+		platformSessions:      newPlatformSessionStore(),
 	}
 	if s.toolSandboxMode == "" {
 		s.toolSandboxMode = "off"
@@ -153,23 +157,26 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /agenticflow", s.handleAgenticFlow)
 	mux.Handle("GET /quickstart", ui.QuickstartHandler())
 	mux.Handle("GET /platform", ui.PlatformHandler())
-	mux.Handle("GET /api/platform/runs/stream", s.authMiddleware(http.HandlerFunc(s.handlePlatformRunsStream)))
-	mux.Handle("GET /api/platform/overview", s.authMiddleware(http.HandlerFunc(s.handlePlatformOverview)))
-	mux.Handle("GET /api/platform/runs", s.authMiddleware(http.HandlerFunc(s.handlePlatformRuns)))
-	mux.Handle("GET /api/platform/runs/{id}", s.authMiddleware(http.HandlerFunc(s.handlePlatformRunByID)))
-	mux.Handle("GET /api/platform/packs", s.authMiddleware(http.HandlerFunc(s.handlePlatformPacks)))
-	mux.Handle("POST /api/platform/packs/install", s.authMiddleware(http.HandlerFunc(s.handlePlatformPacksInstall)))
-	mux.Handle("GET /api/platform/manifests", s.authMiddleware(http.HandlerFunc(s.handlePlatformManifests)))
-	mux.Handle("GET /api/platform/manifests/{id}", s.authMiddleware(http.HandlerFunc(s.handlePlatformManifestByID)))
-	mux.Handle("GET /api/platform/templates", s.authMiddleware(http.HandlerFunc(s.handlePlatformTemplates)))
-	mux.Handle("POST /api/platform/templates/run", s.authMiddleware(http.HandlerFunc(s.handlePlatformTemplateRun)))
-	mux.Handle("POST /api/platform/templates/preview", s.authMiddleware(http.HandlerFunc(s.handlePlatformTemplatePreview)))
-	mux.Handle("GET /api/platform/approvals", s.authMiddleware(http.HandlerFunc(s.handlePlatformApprovals)))
-	mux.Handle("POST /api/platform/approvals/{id}/approve", s.authMiddleware(http.HandlerFunc(s.handlePlatformApprovalApprove)))
-	mux.Handle("POST /api/platform/approvals/{id}/reject", s.authMiddleware(http.HandlerFunc(s.handlePlatformApprovalReject)))
-	mux.Handle("GET /api/platform/credentials", s.authMiddleware(http.HandlerFunc(s.handlePlatformCredentials)))
-	mux.Handle("POST /api/platform/credentials", s.authMiddleware(http.HandlerFunc(s.handlePlatformCredentialUpsert)))
-	mux.Handle("DELETE /api/platform/credentials/{name}", s.authMiddleware(http.HandlerFunc(s.handlePlatformCredentialDelete)))
+	mux.Handle("GET /api/platform/me", http.HandlerFunc(s.handlePlatformMe))
+	mux.Handle("POST /api/platform/login", http.HandlerFunc(s.handlePlatformLogin))
+	mux.Handle("POST /api/platform/logout", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformLogout)))
+	mux.Handle("GET /api/platform/runs/stream", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformRunsStream)))
+	mux.Handle("GET /api/platform/overview", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformOverview)))
+	mux.Handle("GET /api/platform/runs", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformRuns)))
+	mux.Handle("GET /api/platform/runs/{id}", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformRunByID)))
+	mux.Handle("GET /api/platform/packs", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformPacks)))
+	mux.Handle("POST /api/platform/packs/install", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformPacksInstall)))
+	mux.Handle("GET /api/platform/manifests", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformManifests)))
+	mux.Handle("GET /api/platform/manifests/{id}", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformManifestByID)))
+	mux.Handle("GET /api/platform/templates", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformTemplates)))
+	mux.Handle("POST /api/platform/templates/run", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformTemplateRun)))
+	mux.Handle("POST /api/platform/templates/preview", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformTemplatePreview)))
+	mux.Handle("GET /api/platform/approvals", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformApprovals)))
+	mux.Handle("POST /api/platform/approvals/{id}/approve", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformApprovalApprove)))
+	mux.Handle("POST /api/platform/approvals/{id}/reject", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformApprovalReject)))
+	mux.Handle("GET /api/platform/credentials", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformCredentials)))
+	mux.Handle("POST /api/platform/credentials", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformCredentialUpsert)))
+	mux.Handle("DELETE /api/platform/credentials/{name}", s.platformAuthMiddleware(http.HandlerFunc(s.handlePlatformCredentialDelete)))
 	return mux
 }
 
