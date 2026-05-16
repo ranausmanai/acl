@@ -586,6 +586,30 @@ go test ./...
 
 ---
 
+## Production deploy (acl.fyi)
+
+The live site at [acl.fyi](https://acl.fyi) is served by a single systemd-managed
+`acl serve` process on a Linux/amd64 host. A one-command deploy script ships
+in this repo:
+
+```bash
+ssh root@<host>
+cd /opt/acl-src      # this repo, cloned on the VPS
+git pull
+./deploy.sh
+```
+
+`deploy.sh` cross-compiles the binary, `acl check`s the canonical demo file,
+backs up the current `/opt/acl/acl` to `acl.bak-<timestamp>-deploy`, atomically
+swaps the new binary in, restarts `acl.service`, and verifies that `/health`
+and `/agenticflow` return 200. On any failure it puts the old binary back and
+exits non-zero.
+
+Overrides are environment variables — see the comments at the top of
+[`deploy.sh`](deploy.sh) for the full list.
+
+---
+
 ## Contributing
 
 Pull requests are welcome. For major changes please open an issue first.
