@@ -3,8 +3,11 @@
 // Verbs:
 //
 //	acl run <file.acl>      [--var k=v]... [--vars f.json] [--agent Name]
-//	                        [--no-cache] [--receipt path] [--quiet]
-//	acl serve <file.acl>    [--port 8080]
+//	                        [--no-cache] [--no-history] [--receipt path]
+//	                        [--mcp "prefix:cmd ..."]... [--quiet]
+//	acl serve <file.acl>    [--port 8080] [--mcp "prefix:cmd ..."]...
+//	                        [--tool-sandbox off|subprocess]
+//	acl check <file.acl>    Parse + semantic-check without running
 //	acl init <project>
 //	acl history list        [--limit 20]
 //	acl history show <id>
@@ -22,8 +25,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ranausmanai/acl/internal/checker"
 	"github.com/ranausmanai/acl/internal/cligen"
 	"github.com/ranausmanai/acl/internal/lexer"
+	"github.com/ranausmanai/acl/internal/mcp"
 	"github.com/ranausmanai/acl/internal/parser"
 	"github.com/ranausmanai/acl/internal/protocol"
 	"github.com/ranausmanai/acl/internal/receipt"
@@ -50,6 +55,8 @@ func main() {
 		os.Exit(cmdRun(args))
 	case "serve":
 		os.Exit(cmdServe(args))
+	case "check":
+		os.Exit(cmdCheck(args))
 	case "init":
 		os.Exit(cmdInit(args))
 	case "history":
@@ -73,10 +80,17 @@ func printUsage(w *os.File) {
 USAGE
   acl run <file.acl>      Execute an ACL program
   acl serve <file.acl>    Expose every AGENT as an HTTP endpoint
+  acl check <file.acl>    Parse + semantic-check without running
   acl init <project>      Scaffold a new ACL project
   acl history list|show|purge   Inspect run history
   acl cli <file.acl>      Generate a bash wrapper that calls each AGENT
   acl version             Print the version
+
+COMMON FLAGS
+  --mcp "prefix:cmd args..."   Connect a stdio MCP server (repeatable on run/serve)
+  --tool-sandbox <mode>        Tool sandbox mode (off | subprocess) for serve
+  --no-history                 Do not persist this run to history
+  --no-cache                   Disable the SHA-256 step-result cache
 
 Run any command with --help to see its flags.
 Docs: https://acl.fyi
@@ -94,8 +108,10 @@ func cmdRun(args []string) int {
 		varsFile    string
 		agentName   string
 		noCache     bool
+		noHistory   bool
 		receiptPath string
 		quiet       bool
+		mcpSpecs    []string
 	)
 
 	i := 0
@@ -141,6 +157,15 @@ Flags:
 			agentName = args[i]
 		case a == "--no-cache":
 			noCache = true
+		case a == "--no-history":
+			noHistory = true
+		case a == "--mcp":
+			i++
+			if i >= len(args) {
+				fmt.Fprintln(os.Stderr, "acl: --mcp needs a spec")
+				return 2
+			}
+			mcpSpecs = append(mcpSpecs, args[i])
 		case a == "--receipt":
 			i++
 			if i >= len(args) {
@@ -202,15 +227,31 @@ Flags:
 
 	reg := builtin.NewRegistry()
 
+	// Spin up MCP servers (if any) and register their tools into the
+	// registry under the requested prefixes. Each Client owns its child
+	// process; we close them on exit so the python servers don't linger.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mcpClients, err := attachMCPServers(ctx, reg, mcpSpecs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acl run: %v\n", err)
+		return 1
+	}
+	defer func() {
+		for _, c := range mcpClients {
+			_ = c.Close()
+		}
+	}()
+
 	// runProgram returns the receipt and (optionally) an error. The receipt
 	// is the product — print and persist it regardless of error.
-	r, runErr := runProgram(context.Background(), string(src), cfg, reg, agentName)
+	r, runErr := runProgram(ctx, string(src), cfg, reg, agentName)
 	if r == nil {
 		fmt.Fprintf(os.Stderr, "acl run: %v\n", runErr)
 		return 1
 	}
 
-	if os.Getenv("ACL_NO_HISTORY") == "" {
+	if !noHistory && os.Getenv("ACL_NO_HISTORY") == "" {
 		if dbPath, err := store.DefaultPath(); err == nil {
 			if st, err := store.Open(dbPath); err == nil {
 				_, _ = st.Put(r)
@@ -263,15 +304,24 @@ Flags:
 
 func cmdServe(args []string) int {
 	var (
-		file string
-		port = 8080
+		file        string
+		port        = 8080
+		mcpSpecs    []string
+		toolSandbox string
 	)
 	i := 0
 	for i < len(args) {
 		a := args[i]
 		switch {
 		case a == "--help" || a == "-h":
-			fmt.Println(`acl serve <file.acl> [--port 8080]
+			fmt.Println(`acl serve <file.acl> [flags]
+
+Flags:
+  --port <n>                    HTTP port (default 8080)
+  --mcp "prefix:cmd args..."    Connect a stdio MCP server (repeatable)
+  --tool-sandbox <mode>         off | subprocess
+  --no-history                  Do not persist scheduled runs to history
+  --no-cache                    Disable the step-result cache
 
 Exposes every AGENT as POST /run/<Name>. SCHEDULE agents fire in the background.
 Set ACL_SERVE_API_KEY to require a bearer token on /agents and /run/*.`)
@@ -288,6 +338,27 @@ Set ACL_SERVE_API_KEY to require a bearer token on /agents and /run/*.`)
 				return 2
 			}
 			port = n
+		case a == "--mcp":
+			i++
+			if i >= len(args) {
+				fmt.Fprintln(os.Stderr, "acl: --mcp needs a spec")
+				return 2
+			}
+			mcpSpecs = append(mcpSpecs, args[i])
+		case a == "--tool-sandbox":
+			i++
+			if i >= len(args) {
+				fmt.Fprintln(os.Stderr, "acl: --tool-sandbox needs a mode")
+				return 2
+			}
+			toolSandbox = args[i]
+		case a == "--no-history":
+			_ = os.Setenv("ACL_NO_HISTORY", "1")
+		case a == "--no-cache":
+			// The serve path currently always runs without an explicit
+			// cache dir; honor the flag by setting the env that the runtime
+			// inspects for scheduled runs and tool calls.
+			_ = os.Setenv("ACL_NO_CACHE", "1")
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(os.Stderr, "acl serve: unknown flag %q\n", a)
 			return 2
@@ -311,16 +382,115 @@ Set ACL_SERVE_API_KEY to require a bearer token on /agents and /run/*.`)
 		return 1
 	}
 	reg := builtin.NewRegistry()
+
+	// Attach MCP servers BEFORE the server inspects ALLOW lists so that
+	// agents in the file can refer to mcp-provided tools (e.g.
+	// monarch.get_balances) without a checker error.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mcpClients, err := attachMCPServers(ctx, reg, mcpSpecs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acl serve: %v\n", err)
+		return 1
+	}
+	defer func() {
+		for _, c := range mcpClients {
+			_ = c.Close()
+		}
+	}()
+
 	srv, err := server.NewServer(string(src), reg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acl serve: %v\n", err)
 		return 1
+	}
+	if toolSandbox != "" {
+		srv.SetToolSandboxMode(toolSandbox)
 	}
 	if err := srv.Start(port); err != nil {
 		fmt.Fprintf(os.Stderr, "acl serve: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// cmdCheck parses and semantic-checks a file without running it. It's the
+// fastest way to validate ACL source — useful in CI and for editor hooks.
+func cmdCheck(args []string) int {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Println(`acl check <file.acl>
+
+Parses the file and runs semantic validation. Prints OK on success, the
+parse / check error otherwise. Exit code is 0 on success, 1 on any issue.`)
+		if len(args) == 0 {
+			return 2
+		}
+		return 0
+	}
+	file := args[0]
+	src, err := os.ReadFile(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acl check: %v\n", err)
+		return 1
+	}
+	toks, err := lexer.New(string(src)).Tokenize()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acl check: lex: %v\n", err)
+		return 1
+	}
+	nodes, err := parser.Parse(toks)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acl check: parse: %v\n", err)
+		return 1
+	}
+	reg := builtin.NewRegistry()
+	if errs := checker.Check(nodes, reg.Names()); len(errs) > 0 {
+		for _, e := range errs {
+			fmt.Fprintf(os.Stderr, "acl check: %v\n", e)
+		}
+		return 1
+	}
+	fmt.Printf("acl > %s OK\n", file)
+	return 0
+}
+
+// attachMCPServers takes a list of `--mcp` specs of the form
+//
+//	"prefix:command arg arg ..."     (prefix-namespaced tools)
+//	"command arg arg ..."            (no prefix)
+//
+// Each spec spawns a stdio MCP server via internal/mcp and registers its
+// advertised tools into reg. The returned clients must be Close()'d by the
+// caller when the program exits so the child processes don't linger.
+func attachMCPServers(ctx context.Context, reg *protocol.Registry, specs []string) ([]*mcp.Client, error) {
+	var clients []*mcp.Client
+	for _, spec := range specs {
+		prefix, cmdLine := splitMCPSpec(spec)
+		if len(cmdLine) == 0 {
+			return clients, fmt.Errorf("--mcp: empty command in spec %q", spec)
+		}
+		c, err := mcp.Connect(ctx, cmdLine, nil)
+		if err != nil {
+			return clients, fmt.Errorf("--mcp %q: %w", spec, err)
+		}
+		c.RegisterAll(reg, prefix)
+		clients = append(clients, c)
+	}
+	return clients, nil
+}
+
+// splitMCPSpec parses a `--mcp` spec into (prefix, argv). The prefix is the
+// substring before the first ':'; everything after is the command and its
+// args, shell-split on whitespace (no quote handling — matches the legacy
+// binary's behavior). An empty prefix means "register the tools by their
+// own names with no prefix."
+func splitMCPSpec(spec string) (string, []string) {
+	prefix, rest, hasPrefix := strings.Cut(spec, ":")
+	if !hasPrefix {
+		// No prefix — the whole spec is the command.
+		return "", strings.Fields(spec)
+	}
+	return strings.TrimSpace(prefix), strings.Fields(rest)
 }
 
 // ---------------------------------------------------------------------------
