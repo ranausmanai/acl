@@ -77,6 +77,17 @@ nav { background: rgba(8,8,10,0.86); backdrop-filter: blur(8px); border-bottom: 
 .mode-card h3 { font-size: 13px; margin-bottom: 6px; color: #dcfce7; }
 .mode-card p { font-size: 12px; color: var(--muted); line-height: 1.55; }
 .mode-card code { background: #18181b; border:1px solid var(--border); padding: 2px 5px; border-radius: 6px; font-size: 11px; }
+.static-demo { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.static-demo-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--subtle); font-weight: 700; margin-bottom: 8px; }
+.static-demo-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; font-size: 11.5px; line-height: 1.5; }
+.static-demo-row .dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 999px; margin-top: 5px; }
+.static-demo-row.green .dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+.static-demo-row.blocked .dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
+.static-demo-row .body { color: var(--muted); }
+.static-demo-row .body code { font-size: 11px; }
+.static-demo-row .says { display: block; margin-top: 2px; color: #d4d4d8; }
+.static-demo-link { display: inline-block; margin-top: 4px; font-size: 11px; color: #a5b4fc; text-decoration: none; }
+.static-demo-link:hover { text-decoration: underline; }
 .tutorial-panel { margin-top: 12px; border:1px solid var(--border); background: rgba(17,18,23,0.9); border-radius: 12px; padding: 12px; }
 .tutorial-head { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; margin-bottom: 10px; }
 .tutorial-head h3 { font-size: 13px; color: #bbf7d0; margin-bottom: 3px; }
@@ -195,6 +206,7 @@ textarea::placeholder { color: var(--subtle); }
           <div class="mode-card">
             <h3 id="mode-card-title">What this mode demonstrates</h3>
             <p id="mode-card-desc"></p>
+            <div id="mode-static-demo"></div>
           </div>
         </div>
         <div class="welcome-tip" id="tutorial-tip">Use the <strong>Tutorial</strong> button above to open the guided 3-step flow. This page is the demo lab + tutorial in one place.</div>
@@ -237,9 +249,17 @@ const MODES = {
     card: 'This is where ACL shines: multi-step, cross-tool actions with MUST checks and a receipt for the support team.',
     suggestions: [
       'Refund order #10482 and email the customer (approved)',
-      'Check if order #10483 is eligible for a refund',
+      'Try to refund order #10483 (outside the refund window)',
       'Prepare a refund for order #10482 but do not execute yet'
-    ]
+    ],
+    // Static contract demo — same code, two inputs, opposite outcomes,
+    // both with receipts. This is the contract that anchors this mode.
+    staticDemo: {
+      file: 'examples/support_refund.acl',
+      github: 'https://github.com/ranausmanai/acl/blob/main/examples/support_refund.acl',
+      green:   { cmd: 'acl run examples/support_refund.acl --var order_id=10482', says: 'status=success — refund issued, email sent' },
+      blocked: { cmd: 'acl run examples/support_refund.acl --var order_id=10483', says: 'status=failed — CHECK (eligible.refund_eligible == true)' }
+    }
   },
   calendar: {
     label: 'Calendar',
@@ -453,6 +473,37 @@ function resetTutorialProgress() {
   applyTutorialStep('t1', false);
 }
 
+// renderStaticDemo populates the static contract block in the mode card.
+// It is empty (and the divider hidden) for any mode that does not declare
+// a staticDemo. For support_refund, it shows the two contrasting commands
+// with green/amber dots so the killer-demo pattern is visible without
+// running anything first.
+function renderStaticDemo(d) {
+  const root = document.getElementById('mode-static-demo');
+  if (!root) return;
+  if (!d) { root.innerHTML = ''; return; }
+  root.innerHTML = `
+    <div class="static-demo">
+      <div class="static-demo-title">Static contract — same code, two inputs</div>
+      <div class="static-demo-row green">
+        <div class="dot"></div>
+        <div class="body">
+          <code>${esc(d.green.cmd)}</code>
+          <span class="says">${esc(d.green.says)}</span>
+        </div>
+      </div>
+      <div class="static-demo-row blocked">
+        <div class="dot"></div>
+        <div class="body">
+          <code>${esc(d.blocked.cmd)}</code>
+          <span class="says">${esc(d.blocked.says)}</span>
+        </div>
+      </div>
+      <a class="static-demo-link" href="${esc(d.github)}" target="_blank" rel="noopener">View ${esc(d.file)} on GitHub →</a>
+    </div>
+  `;
+}
+
 function renderWelcome() {
   const cfg = MODES[mode];
   document.getElementById('mode-caption').textContent = '';
@@ -460,6 +511,7 @@ function renderWelcome() {
   document.getElementById('welcome-desc').textContent = cfg.welcomeDesc;
   document.getElementById('mode-card-title').textContent = cfg.label + ' demo goal';
   document.getElementById('mode-card-desc').innerHTML = esc(cfg.card) + ' Try asking one of the prompts, then open the generated ACL + receipt.';
+  renderStaticDemo(cfg.staticDemo);
   inputEl.placeholder = cfg.placeholder;
 
   const sug = document.getElementById('suggestions');
