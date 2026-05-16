@@ -195,9 +195,15 @@ func (p *parser) parseStmt() (ast.Node, error) {
 	case lexer.KWSCHEDULE:
 		return p.parseSchedule()
 	default:
-		// skip unknown top-level line
+		// Fail closed on unknown top-level tokens. A silently-skipped line
+		// would let typos ("INTNET") sneak past, which is exactly the
+		// surprise this language is meant to prevent.
+		lit := t.Literal
+		if lit == "" {
+			lit = t.Type.String()
+		}
 		p.consumeLine()
-		return nil, nil
+		return nil, pe(t.Line, "unexpected top-level token %q (expected one of INTENT, ALLOW, LIMIT, AGENT, TEMPLATE, MAKE, GROUP, REMOTE, SCHEDULE)", lit)
 	}
 }
 
@@ -860,14 +866,32 @@ func parseDottedList(toks []lexer.Token) []string {
 	return result
 }
 
-// splitKV parses "time=30s calls=10" → [["time","30s"],["calls","10"]]
+// splitKV parses "time=30s calls=10" → [["time","30s"],["calls","10"]].
+//
+// tokensToString reinserts spaces between tokens, so the raw input may also
+// look like "time = 30 s calls = 10". We normalize by collapsing whitespace
+// around `=` before splitting, then re-glue a numeric value with a trailing
+// duration unit (s/m/h) that the lexer split into two tokens.
 func splitKV(raw string) [][2]string {
+	// Collapse whitespace around '=' so "k = v" and "k=v" both work.
+	raw = strings.ReplaceAll(raw, " =", "=")
+	raw = strings.ReplaceAll(raw, "= ", "=")
+
+	fields := strings.Fields(raw)
 	var result [][2]string
-	for _, field := range strings.Fields(raw) {
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
 		eq := strings.Index(field, "=")
-		if eq > 0 {
-			result = append(result, [2]string{field[:eq], field[eq+1:]})
+		if eq <= 0 {
+			continue
 		}
+		key, val := field[:eq], field[eq+1:]
+		// "30" "s" → "30s" (lexer splits a duration suffix off the number)
+		if i+1 < len(fields) && (fields[i+1] == "s" || fields[i+1] == "m" || fields[i+1] == "h") {
+			val += fields[i+1]
+			i++
+		}
+		result = append(result, [2]string{key, val})
 	}
 	return result
 }

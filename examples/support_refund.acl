@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  support_refund.acl — the demo that explains ACL in 60 seconds.
+#
+#  Same contract, two inputs, two opposite outcomes — both with receipts.
+#
+#    # green: order is in-window and eligible
+#    acl run examples/support_refund.acl --var order_id=10482
+#
+#    # blocked: order is outside the refund window
+#    acl run examples/support_refund.acl --var order_id=10483
+#
+#  Run 1 ends with status=success and a receipt showing the email message_id.
+#  Run 2 ends with status=failed and a receipt showing the exact CHECK that
+#  stopped the refund. No code change between the two runs — the contract
+#  did the work.
+# ─────────────────────────────────────────────────────────────────────────────
+
+INTENT "Refund an order, if and only if the policy allows it"
+ALLOW  demo.support.get_order, demo.support.refund_order, demo.support.send_email
+
+AGENT RefundOrder
+  IN  order_id
+  TOOLS demo.support.get_order, demo.support.refund_order, demo.support.send_email
+
+  # 1. Look the order up. The tool returns found=false for unknown ids.
+  STEP order = TOOL demo.support.get_order(order_id=order_id)
+    CHECK order.found == true
+    ONFAIL stop
+
+  # 2. Policy gate — eligibility is decided *before* we touch the refund tool.
+  #    This CHECK is the load-bearing line of the demo: when the order is
+  #    outside the window, the contract halts here with a receipt that quotes
+  #    this exact expression as the failure.
+  STEP eligible = TOOL demo.support.get_order(order_id=order_id)
+    CHECK eligible.refund_eligible == true
+    ONFAIL stop
+
+  # 3. Issue the refund. We pass approved=true because step 2 just proved
+  #    eligibility — but the tool still has its own internal guard, so a
+  #    rejected response would also fail the CHECK below.
+  STEP refund = TOOL demo.support.refund_order(
+    order_id=order_id,
+    approved=true,
+    amount=order.total_amount,
+    reason="Customer-reported issue")
+    CHECK refund.status == "refunded"
+    ONFAIL stop
+
+  # 4. Notify the customer. The email tool returns a message_id; we record
+  #    it in the receipt so support can prove the customer was told.
+  STEP note = TOOL demo.support.send_email(
+    to=order.customer_email,
+    subject="Refund processed for order {order_id}",
+    body="Hi {order.customer_name}, your refund of {refund.amount} {refund.currency} is on its way. Reference: {refund.refund_id}.")
+    CHECK has(note, "message_id")
+    ONFAIL stop
+
+  MUST refund.status == "refunded" and has(note, "message_id")
+  RESULT note

@@ -206,6 +206,24 @@ See:
 
 ## Examples
 
+### The refund that gets stopped — what ACL does in 60 seconds
+
+The same contract, two inputs, two opposite outcomes. Both produce receipts.
+
+```bash
+# Green: order is in-window and eligible — refund proceeds, email is sent.
+acl run examples/support_refund.acl --var order_id=10482
+
+# Blocked: order is outside the refund window. The contract halts here:
+#   CHECK (eligible.refund_eligible == true)
+# No code change between the two runs. The contract did the work.
+acl run examples/support_refund.acl --var order_id=10483
+```
+
+See [`examples/support_refund.acl`](examples/support_refund.acl). The failure
+receipt records the exact CHECK expression that stopped the agent — that's the
+audit trail support, engineers, or a regulator can read without guessing.
+
 ### Incident report pipeline
 
 ```acl

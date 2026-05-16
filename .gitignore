@@ -1,5 +1,5 @@
-# Binaries
-acl
+# Binaries (root-anchored so cmd/acl/ is not accidentally ignored)
+/acl
 /dist/
 
 # Cache
